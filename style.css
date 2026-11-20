@@ -1,0 +1,17 @@
+:root { --bg: #fbf8f3; --fg: #23201c; --muted: #6b645a; --accent: #c8322b; --card: #ffffff; --line: #e7e0d5; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1b1916; --fg: #f1ece4; --muted: #a59d91; --accent: #ef6a5f; --card: #24211d; --line: #3a352e; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif; padding: 0 20px; }
+main { max-width: 680px; margin: 0 auto; padding: 64px 0 80px; }
+header { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; }
+header img { width: 64px; height: 64px; image-rendering: pixelated; }
+h1 { font-size: 2rem; line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; margin: 2.2em 0 0.4em; }
+p, li { color: var(--fg); }
+.lede { font-size: 1.15rem; color: var(--muted); margin-top: 0; }
+a { color: var(--accent); }
+ul { padding-left: 1.2em; }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+footer a { color: var(--muted); }
