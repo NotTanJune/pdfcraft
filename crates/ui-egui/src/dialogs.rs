@@ -101,8 +101,12 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
     dialogs(app, ctx);
     // Above Document Properties when Security's Unlock… asked for it; script prompts stay on top.
     unlock(app, ctx);
+    // Google Drive and OneDrive: their window, and the news from the transfers running behind it.
+    app.cloud_frame(ctx);
     #[cfg(not(target_arch = "wasm32"))]
     app.show_script_dialog(ctx);
+    #[cfg(not(target_arch = "wasm32"))]
+    app.show_library_window(ctx);
 }
 
 /// Draw the active modal dialog and apply the action the user chose.
@@ -1673,7 +1677,7 @@ fn dialog_about(ui: &mut egui::Ui, req: &mut Pending) -> bool {
         2 => crate::credits::models_ui(ui),
         _ => {
             ui.horizontal(|ui| {
-                widgets::artcraft_mark(ui, 40.0);
+                widgets::app_mark(ui, 40.0);
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("PdfCraft").font(theme::semibold(20.0)));
                     ui.label(crate::i18n::fmt(tl!("Version {v}"), &[("v", &pdfcraft_engine::build_info::version())]));
@@ -1689,10 +1693,7 @@ fn dialog_about(ui: &mut egui::Ui, req: &mut Pending) -> bool {
                 .small(),
             );
             ui.add_space(12.0);
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(tl!("Part of")).color(t.text_muted));
-                widgets::artcraft_logo(ui, 16.0);
-            });
+            ui.label(egui::RichText::new("Based on PdfCraft by the ArtCraft team.").color(t.text_muted));
             ui.add_space(6.0);
             if let Some(cmd) = widgets::community_links(ui) {
                 req.link_command = Some(cmd);

@@ -1194,6 +1194,30 @@ evidence = ["crates/engine/src/text_links.rs::web_and_email_addresses_in_text_ar
 notes = "With the Select tool, http(s)://, www. (opened as https://) and email (mailto:) addresses written as plain page text show the link cursor and their address on hover, and a click asks first and opens through the same check as link annotations (#4207). Found once per page text layer with the Create links from URLs detector: http, https and mailto only, never another scheme, nor a www. or email address inside one written with another scheme (ftp://www.…); sentence punctuation and unpaired brackets left out, paired brackets inside kept; an address ends at the end of its line; at most 512 per page, none on a page of more than 200,000 glyphs. The address opened is the one written (a www. address gains https://, an email address mailto:). Text under a link annotation follows the annotation, and a drag from an address selects its text. Preferences: Open web and email addresses written in the page text (default on; control key text-links). link_list text_links: true lists them, 100 pages per call (text_links_from, text_links_next_page), stopping after the page that reaches 2,000. Missing: addresses broken across lines or hyphenated, and following one under a highlight comment."
 
 [[feature]]
+id = "view.link-preview"
+title = "Preview where a link goes by hovering it"
+area = "B"
+tier = "P2"
+milestone = "M3"
+status = "shipped"
+commands = []
+tools = ["link_preview"]
+evidence = ["crates/ui-egui/tests/it/link_preview.rs::resting_on_a_link_to_a_page_draws_the_part_of_the_page_it_goes_to", "crates/ui-egui/tests/it/link_preview.rs::a_web_link_shows_its_address_and_never_fetches_while_the_setting_is_off", "crates/ui-egui/tests/it/link_preview.rs::with_the_setting_on_a_web_link_shows_the_fetched_title_and_description", "crates/ui-egui/tests/it/link_preview.rs::a_mail_link_has_a_tip_and_no_card", "crates/engine/src/link_preview.rs::an_xyz_destination_starts_at_its_point", "crates/assist/tests/network.rs::redirects_are_followed_up_to_three", "crates/assist/tests/network.rs::a_fourth_redirect_stops_it", "crates/assist/tests/network.rs::only_the_first_half_mebibyte_is_read_and_a_head_there_still_gives_a_card", "crates/assist/tests/network.rs::the_app_policy_does_not_reach_this_computer", "crates/automation/tests/it/assist.rs::a_link_to_a_page_previews_the_destination_region_as_a_picture", "crates/automation/tests/it/assist.rs::a_web_link_previews_its_host_and_fetches_only_when_asked"]
+notes = "With the Select tool, resting the pointer on a link (annotation, or an address written in the page text) shows a card beside it. A link to a page of the document: its label, then after 0.3 s a small picture of the part of the destination page the link goes to (/XYZ point, /FitH, /FitV, /FitR rectangle, or the whole page for /Fit), drawn off the UI thread by the page renderer. A web link: the whole address and the host as the browser connects to it (international hosts in punycode, a warning when alphabets are mixed), at once and without any network use. Preferences: Fetch web link previews (off by default; control key fetch-link-previews) adds, after the pointer has rested 0.6 s, the page's title and description (og:title, og:description, og:site_name, title, meta description, Twitter equivalents) read by a plain GET: http and https only, at most 3 redirects (each checked, none from https to http), 5 s in all, the first 512 KiB of the page, no cookies, no Referer, no scripts or sub-resources, and never an address on this computer or a private network (loopback, RFC 1918, link-local, CGNAT, unique-local); a name that resolves differently at connect time (DNS rebinding) is not caught, and the answer is only shown, never sent anywhere. Cards are remembered per address for the session. Not on the web build. The link_preview tool returns the same picture or host, and fetches only with fetch: true. Not here: live page rendering, favicons or images, and previews for Launch, JavaScript or layer actions."
+
+[[feature]]
+id = "view.open-link-now"
+title = "Command-click (Ctrl-click) opens a web link without asking"
+area = "B"
+tier = "P2"
+milestone = "M3"
+status = "shipped"
+commands = []
+tools = []
+evidence = ["crates/ui-egui/tests/it/link_preview.rs::a_command_click_on_a_web_link_opens_it_at_once", "crates/ui-egui/tests/it/link_preview.rs::a_plain_click_on_a_web_link_still_asks_first", "crates/ui-egui/tests/it/link_preview.rs::a_command_click_still_asks_before_writing_an_email_and_goes_to_a_page_link_as_usual"]
+notes = "A plain click on a web link or address in the page text still asks first (Open this web page?). Holding Command (macOS) or Ctrl (elsewhere) while clicking opens an http or https address in the default browser at once, once it has passed the same address check as before (hidden or look-alike characters, malformed addresses and other schemes are refused or asked about as for a plain click). Email addresses, push-button URI actions and script requests keep their question. Desktop only; there is no headless counterpart because the tools never open a browser."
+
+[[feature]]
 id = "view.follow-links"
 title = "Follow links and destinations"
 area = "B"
@@ -7068,12 +7092,36 @@ title = "Create PDF from Markdown"
 area = "J"
 tier = "P2"
 milestone = "M10"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["file.open"]
+tools = ["doc_create_from_document", "doc_create_multiple"]
+evidence = ["crates/convert/src/tests.rs::markdown_becomes_selectable_text_with_bookmarks", "crates/convert/src/tests.rs::a_long_document_paginates_and_keeps_text_inside_the_margins", "crates/convert/src/tests.rs::web_links_become_link_annotations_and_script_links_do_not", "crates/convert/src/tests.rs::pictures_are_embedded", "crates/automation/tests/it/convert.rs::word_markdown_latex_csv_and_excel_files_are_typeset_through_the_tool", "crates/automation/tests/it/convert.rs::office_files_in_a_combine_are_typeset_in_process"]
+notes = "In process, no LibreOffice (pdfcraft-convert: craft-markdown into the craft-flow model, then the flow typesetter). .md and .markdown files open from File ▸ Open, Create ▸ Multiple files, Combine and the doc_create_from_document tool (paper A4 or Letter, margin, text size). Headings (also bookmarks), paragraphs with bold, italic, strike and inline code, bullet and numbered lists, quotes, code blocks, rules, pipe tables (header row repeated across pages), pictures given as data: URIs, web and mail links; text is selectable (standard fonts, with the bundled Inter face for characters those lack). Limits: pictures that are not data: URIs show their description; line breaking and spacing are PdfCraft's own, not a browser's; no CSS or raw HTML. Unconverted content is listed in the tool's `warnings`."
 
+
+[[feature]]
+id = "create.from-latex"
+title = "Create PDF from LaTeX (.tex)"
+area = "J"
+tier = "P3"
+milestone = "M10"
+status = "partial"
+commands = ["file.open"]
+tools = ["doc_create_from_document", "doc_create_multiple"]
+evidence = ["crates/convert/src/tests.rs::latex_sections_lists_and_math_are_set", "crates/convert/src/tests.rs::hostile_nesting_and_size_stay_bounded", "crates/automation/tests/it/convert.rs::word_markdown_latex_csv_and_excel_files_are_typeset_through_the_tool"]
+notes = "In process (craft-latex into the craft-flow model, then the flow typesetter); .tex and .latex files open from File ▸ Open, Create ▸ Multiple files, Combine and doc_create_from_document. craft-latex reads the everyday subset: the title and author, sectioning (bookmarks), paragraphs, itemize and enumerate, quotes, verbatim, tabular with multicolumn, text formatting, links and footnotes, and math, which is set as linear text (x^2, no typeset formulas). It is not a TeX engine: macros, packages, \\input, bibliographies, floats and layout commands are not expanded or are dropped, so only simple documents look as their source suggests."
+
+[[feature]]
+id = "create.from-csv"
+title = "Create PDF from CSV or TSV"
+area = "J"
+tier = "P3"
+milestone = "M10"
+status = "shipped"
+commands = ["file.open"]
+tools = ["doc_create_from_document", "doc_create_multiple"]
+evidence = ["crates/convert/src/tests.rs::tables_have_their_header_row_on_every_page", "crates/convert/src/tests.rs::csv_with_quotes_semicolons_and_ragged_rows", "crates/convert/src/tests.rs::a_wide_csv_turns_the_page_on_its_side", "crates/automation/tests/it/convert.rs::word_markdown_latex_csv_and_excel_files_are_typeset_through_the_tool"]
+notes = "In process (craft-csv reads the file, the flow typesetter sets it): .csv and .tsv files open from File ▸ Open, Create ▸ Multiple files, Combine and doc_create_from_document. The delimiter (comma, semicolon or tab) and the encoding (byte order mark, UTF-8, else Windows-1252 or 1256) are detected; the first record is the header and repeats on every page; the table is bordered, columns are as wide as their content, and a table wider than the portrait page turns it on its side; pages are numbered. Limits: 200 columns and 400,000 cells (the rest is left out, with a warning), 4,000 characters of text in a cell."
 [[feature]]
 id = "create.from-clipboard"
 title = "Create PDF from the clipboard"
@@ -7136,29 +7184,28 @@ notes = ""
 
 [[feature]]
 id = "create.from-office"
-title = "Create PDF from Office documents (LibreOffice sidecar)"
+title = "Create PDF from Office documents (in process for Word and Excel; LibreOffice for the rest)"
 area = "J"
 tier = "P2"
 milestone = "M10"
 status = "partial"
 commands = ["file.open"]
-tools = ["doc_create_multiple", "doc_combine"]
+tools = ["doc_create_from_document", "doc_create_multiple", "doc_combine"]
 evidence = [
+    "crates/convert/src/tests.rs::word_documents_keep_their_text_and_page",
+    "crates/convert/src/tests.rs::a_workbook_makes_a_heading_and_a_table_for_each_sheet",
+    "crates/convert/src/tests.rs::a_workbook_shows_dates_and_percentages_as_their_cells_do",
+    "crates/convert/src/tests.rs::files_that_are_not_what_their_name_says_are_refused_without_panicking",
+    "crates/automation/tests/it/convert.rs::word_markdown_latex_csv_and_excel_files_are_typeset_through_the_tool",
+    "crates/automation/tests/it/convert.rs::the_tool_refuses_what_it_cannot_convert_and_says_why",
     "crates/create/src/office.rs::office_files_are_recognised_by_extension_and_signature",
     "crates/create/src/office.rs::other_files_are_not_office_documents",
     "crates/create/src/office.rs::a_converter_that_hangs_is_stopped",
     "crates/create/src/office.rs::a_converter_that_makes_no_pdf_is_reported",
     "crates/create/src/office.rs::libreoffice_converts_a_document_when_installed",
     "crates/create/src/office.rs::the_profile_turns_off_macros_and_never_updates_links",
-    "crates/create/src/office.rs::a_timeout_stops_the_processes_the_converter_started",
-    "crates/automation/tests/it/office.rs::office_documents_convert_separately_with_their_text",
-    "crates/automation/tests/it/office.rs::office_documents_combine_in_order_with_a_bookmark_each",
-    "crates/engine/src/tests.rs::office_documents_convert_through_libreoffice_or_explain_why_not",
-    "crates/engine/src/tests.rs::inline_conversions_refuse_office_documents_without_running_libreoffice",
-    "crates/ui-egui/src/platform/open_worker/tests.rs::file_open_converts_an_office_document_on_the_worker",
-    "crates/ui-egui/src/platform/open_worker/tests.rs::the_open_picker_defaults_to_pdf_and_offers_images_office_text_and_all_files",
 ]
-notes = "File ▸ Open (desktop) opens Word, Excel, PowerPoint, OpenDocument and RTF files (Office documents filter; PDF stays the default) as new, unsaved PDFs, converted on the open worker by an installed LibreOffice run headless in a private temporary folder with a fresh profile (macros disabled, untrusted links blocked, Writer and Calc linked content never updated) and stopped after 120 s. Found through PDFCRAFT_SOFFICE, the PATH, or the usual install folders; without it the user is told LibreOffice is needed. The automation tools that convert files (doc_create_multiple, doc_combine, batch convert) take Office documents too. Not yet: Insert pages, Combine files and Create ▸ Multiple files in the app refuse Office documents (they convert on the frame thread) and point to File ▸ Open; no Create ▸ From Office command or conversion settings; Visio and Publisher; the web build; layout fidelity is LibreOffice's, not measured against Acrobat; Impress has no link-update setting and the process's network access isn't sandboxed (synthetic linked sections, pictures and cell references made no connection with LibreOffice 26.8.1); the real-conversion tests skip where LibreOffice isn't installed, CI included."
+notes = "Word (.docx, .docm, .dotx, .dotm) and Excel (.xlsx, .xlsm, .xltx, .xltm, .xlsb) files are typeset in process by pdfcraft-convert (craft-docx and craft-xlsx into the craft-flow model, then the flow typesetter): no helper program, nothing to install, also on the web build. Word keeps its page size and margins, headings (bookmarks), styled runs, lists, tables with borders, shading and spans, pictures, links and footnotes; each visible Excel sheet is a heading (bookmark) and a table of the values its cells show (number formats, dates, percentages), a table wider than the page turns it on its side. Not drawn: shapes, charts, text boxes, headers and footers; Word's own line breaking and exact spacing are not reproduced; a cell that spans rows is drawn in its first row. Every other Office format (.doc, .xls, .ppt, .pptx, .odt, .ods, .rtf, ...), and a Word or Excel file the in-process reader cannot read, is converted by an installed LibreOffice (PDFCRAFT_SOFFICE, the PATH or the usual install folders; macros off, linked content never updated), desktop only; its remaining risk is in docs/gaps.md. The LibreOffice tests are skipped where it is not installed."
 
 [[feature]]
 id = "create.create-multiple"
@@ -7262,12 +7309,36 @@ title = "Export to Excel (.xlsx) with table detection"
 area = "J"
 tier = "P1"
 milestone = "M10"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["export.xlsx"]
+tools = ["doc_export_office"]
+evidence = ["crates/export/src/tests.rs::xlsx_has_a_sheet_per_detected_table_with_typed_cells", "crates/export/src/tests.rs::xlsx_of_a_page_without_a_table_is_its_text_lines", "crates/automation/tests/it/convert.rs::a_csv_becomes_a_table_that_exports_back_to_excel_csv_and_latex", "crates/automation/tests/it/convert.rs::a_page_without_a_table_exports_its_text_lines_as_rows"]
+notes = "doc_export_office with an .xlsx path, and Export to Excel in the File menu, write one sheet for each table the page layout detects (the Word export's table inference: columns from shared left edges, rows from overlapping lines, ruled grids), named like `Page 3 Table 1`, with header-span cells merged and bold text kept; a page with no table gives a sheet of its text, a paragraph in each row. Cells that read as plain numbers are numbers (no leading zero, at most 15 digits), everything else is text, never a formula. Limits: detection is a heuristic (a table without ruled lines or aligned columns is not found; it is then text lines); a table that continues over pages is one sheet per page; no pictures, number formats or column widths are written; at most 500 sheets, 1,048,575 rows and 4 million cells."
 
+
+[[feature]]
+id = "create.export-csv"
+title = "Export tables to CSV"
+area = "J"
+tier = "P2"
+milestone = "M10"
+status = "shipped"
+commands = ["export.csv"]
+tools = ["doc_export_office"]
+evidence = ["crates/export/src/tests.rs::csv_is_rfc_4180_with_tables_separated_and_formulas_defused", "crates/automation/tests/it/convert.rs::a_csv_becomes_a_table_that_exports_back_to_excel_csv_and_latex", "crates/automation/tests/it/convert.rs::text_that_would_run_as_a_formula_is_exported_as_text"]
+notes = "doc_export_office with a .csv path: the same tables as the Excel export, one after another with an empty row between (`table` picks one by its 1-based number), a page with no table as its text lines. Comma separated, CRLF line ends, fields quoted as RFC 4180 asks; a UTF-8 byte order mark leads text with characters beyond ASCII so Excel reads it as UTF-8; text a spreadsheet would run as a formula (starting with =, +, @, or - when it is not a number) gets a leading apostrophe. Not written: other delimiters or encodings."
+
+[[feature]]
+id = "create.export-latex"
+title = "Export to LaTeX (.tex)"
+area = "J"
+tier = "P3"
+milestone = "M10"
+status = "partial"
+commands = ["export.tex"]
+tools = ["doc_export_office"]
+evidence = ["crates/export/src/tests.rs::latex_is_a_standalone_article_of_the_flowing_pages", "crates/automation/tests/it/convert.rs::a_csv_becomes_a_table_that_exports_back_to_excel_csv_and_latex"]
+notes = "doc_export_office with a .tex path writes the flow the Word and RTF exports build (headings from larger text, paragraphs, bold and italic, lists, detected tables, links) with craft-latex as a standalone `article` for pdfLaTeX, XeLaTeX or LuaLaTeX. Pictures become their alternative text (craft-latex writes none), colours and fonts are not kept, page geometry is not reproduced, and the layout is PdfCraft's reading of the PDF, so the result is a starting point to edit, not the original source."
 [[feature]]
 id = "create.export-pptx"
 title = "Export to PowerPoint (.pptx)"
@@ -9831,11 +9902,11 @@ title = "AI provider interface (local model or own endpoint), off by default"
 area = "N"
 tier = "P2"
 milestone = "M13"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["ai.ask"]
+tools = ["ai_ask"]
+evidence = ["crates/assist/tests/network.rs::a_question_goes_to_chat_completions_with_the_key_and_the_page", "crates/assist/tests/network.rs::an_error_answer_says_what_the_endpoint_said_and_not_the_key", "crates/assist/tests/network.rs::a_redirect_is_not_followed_so_the_key_stays_on_its_host", "crates/assist/tests/network.rs::a_cleartext_endpoint_off_this_machine_is_refused_before_any_connection", "crates/assist/src/secret.rs::a_key_does_not_print", "crates/automation/tests/it/assist.rs::another_endpoint_needs_its_own_key_so_a_stored_key_cannot_be_redirected", "crates/ui-egui/tests/it/ask_ai.rs::ai_is_off_until_a_key_is_set"]
+notes = "Own-endpoint half only: an OpenAI-compatible Chat Completions client (pdfcraft-assist) with a configurable base URL (OpenAI by default; Ollama, LM Studio and gateways through the same setting), model (default gpt-6-luna) and API key. The key lives in the macOS login keychain (security-framework); other systems have no keychain wired in, so it is kept in memory until the app quits (the panel says so), or comes from PDFCRAFT_AI_API_KEY; it is never written to the preferences, a log or an error. AI is off until a key is set. https is required except for a model server on this computer; redirects are not followed, so the key goes to the one host chosen. Requests run off the UI thread, are bounded (120 s, 4 MiB answer) and can be stopped (the request already sent ends on its own and its answer is dropped). Not here: a local model (craft-ai's candle-based local inference is not used) and the web build, which has no network client for it. The craft-libs ai and ai-core crates were not used: ai-core is types and a contract with no client, and craft-ai drags in sysinfo, dirs and a second ureq feature set for local-model download we do not use."
 
 [[feature]]
 id = "misc.ai-summary"
@@ -9855,11 +9926,11 @@ title = "Ask questions with citations to pages"
 area = "N"
 tier = "P2"
 milestone = "M13"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["ai.ask"]
+tools = ["ai_ask"]
+evidence = ["crates/automation/tests/it/assist.rs::ai_ask_sends_the_selection_and_page_text_and_reads_the_citations", "crates/automation/tests/it/assist.rs::ai_ask_dry_run_shows_the_request_and_contacts_nobody", "crates/assist/src/cite.rs::other_spellings_are_read", "crates/ui-egui/tests/it/ask_ai.rs::asking_about_a_selection_shows_the_answer_with_clickable_page_citations", "crates/ui-egui/tests/it/ask_ai.rs::stopping_a_question_drops_its_answer"]
+notes = "Questions about text the reader selected: Ask AI in the page's right-click menu, in the bar beside a text selection, in the command palette (ai.ask) and in View > Side panels opens a chat panel with the selection, its page and a question box; the answer is asked to cite pages as [p. 12] and each citation is a link that goes to that page (only pages the document has). Sends the selected text, its page number and, only when ticked (or context: true in ai_ask), the text of that page; the conversation so far (six exchanges) goes along. dry_run: true on ai_ask returns exactly what would be sent. Refused when the document does not allow copying. Not here: questions over the whole document (no retrieval or indexing; nothing is sent that was not selected or ticked), summaries (misc.ai-summary) and the web build."
 
 [[feature]]
 id = "misc.ai-conversational-edit"
@@ -9967,7 +10038,31 @@ status = "na"
 commands = []
 tools = []
 evidence = []
-notes = "Adobe cloud; local files and native dialogs (pluggable storage later)"
+notes = "Adobe cloud; local files and native dialogs (Google Drive and OneDrive: misc.cloud-google-drive, misc.cloud-onedrive)"
+
+[[feature]]
+id = "misc.cloud-google-drive"
+title = "Google Drive: browse, open, save back and save a copy"
+area = "N"
+tier = "P2"
+milestone = "none"
+status = "partial"
+commands = ["cloud.drives", "cloud.save", "cloud.save_copy"]
+tools = ["cloud_status", "cloud_connect", "cloud_disconnect", "cloud_list", "cloud_download", "cloud_upload"]
+evidence = ["crates/clouddrive/tests/flow.rs::google_connect_uses_pkce_and_keeps_only_the_refresh_token_in_the_keychain", "crates/clouddrive/tests/flow.rs::google_browse_pages_search_and_the_listed_types", "crates/clouddrive/tests/flow.rs::google_download_is_bounded_reports_progress_and_exports_documents", "crates/clouddrive/tests/flow.rs::google_uploads_small_and_large_files_and_updates_without_clobbering", "crates/clouddrive/tests/flow.rs::an_expired_access_token_is_refreshed_once_and_the_call_goes_through", "crates/clouddrive/tests/flow.rs::disconnecting_revokes_at_google_and_deletes_the_saved_account", "crates/clouddrive/src/oauth.rs::a_wrong_state_a_stray_request_and_a_foreign_host_are_ignored_until_the_right_one_comes", "crates/clouddrive/src/pkce.rs::the_challenge_is_the_rfc_7636_test_vector", "crates/automation/tests/it/cloud.rs::google_drive_end_to_end", "crates/automation/tests/it/cloud.rs::a_google_document_downloads_as_its_pdf_export_and_cannot_take_a_pdf_back", "crates/ui-egui/tests/it/cloud_drives.rs::the_window_connects_browses_opens_saves_back_and_disconnects", "crates/ui-egui/tests/it/cloud_drives.rs::a_transfer_can_be_cancelled_and_nothing_opens", "crates/ui-egui/tests/it/cloud_drives.rs::a_document_that_did_not_come_from_a_drive_saves_as_a_copy"]
+notes = "Off until the owner connects an account with a client ID from their own Google Cloud project (PdfCraft ships none and no server sits between the app and the provider); the client ID is kept in the system keychain with the tokens, never in the preferences file. File > Cloud drives… opens a window: Connect (OAuth 2.0 authorization code with PKCE S256 and a loopback redirect on 127.0.0.1; the sign-in page opens in the system browser and PdfCraft never sees a password; a redirect with another state, path or Host is ignored; 5 minutes), Disconnect (Google is asked to revoke the refresh token, then the saved account is deleted), a folder browser with breadcrumb, search by name and Load more, and Open, which downloads into the app's cache folder and opens it as File > Open does (PDF as it is; Word, Markdown, LaTeX, CSV and Excel through the in-process conversion, a Google Docs or Sheets file as its PDF export, which cannot be replaced by a PDF, so saving it back makes a copy). A PDF opened from the drive remembers its file and version: File > Save to drive saves it as Save does and uploads a new revision, asking first (Replace it, Save a copy instead, Cancel) when the file's version changed since; File > Save a copy to drive… picks a folder and a name for a new file, also for a document that did not come from a drive. Transfers run on their own thread with a progress bar and Cancel. Everything is bounded: https only (plain http only to this computer), no cookies, no redirect followed with a token attached, 30 s per call, 20 minutes and a 45 s stall per transfer, 4 MiB of JSON, 256 MiB per file, 200 items a page; tokens, codes and client secrets never appear in an error or a log. Google Drive v3: scope https://www.googleapis.com/auth/drive (configurable), files.list with paging and name search, alt=media downloads, multipart upload up to 4 MB and a resumable session in 3 MiB chunks above, content update; Google limits an export to 10 MB. Shared drives are listed through the default corpus only; shortcuts, comments and sharing are not handled. A file's version is Drive's version number; the check and the write are two requests, so a write can still slip in between. The cloud_* tools are the headless counterpart (cloud_download opens into the session from memory; cloud_upload with an id refuses to replace a changed file unless overwrite is true). Tests run against a loopback server that speaks the OAuth and Google Drive v3 endpoints used; the real Google endpoints have not been contacted by any test, so field-level differences from the documentation would only show in use. Not on the web build."
+
+[[feature]]
+id = "misc.cloud-onedrive"
+title = "OneDrive: browse, open, save back and save a copy"
+area = "N"
+tier = "P2"
+milestone = "none"
+status = "partial"
+commands = ["cloud.drives", "cloud.save", "cloud.save_copy"]
+tools = ["cloud_status", "cloud_connect", "cloud_disconnect", "cloud_list", "cloud_download", "cloud_upload"]
+evidence = ["crates/clouddrive/tests/flow.rs::onedrive_browse_search_and_download_without_the_token_on_the_redirect", "crates/clouddrive/tests/flow.rs::onedrive_uploads_renames_on_a_clash_and_replaces_with_a_conflict_check", "crates/clouddrive/tests/flow.rs::onedrive_disconnect_deletes_tokens_and_says_it_could_not_revoke", "crates/clouddrive/tests/flow.rs::a_next_page_link_to_another_host_is_refused_and_never_contacted", "crates/clouddrive/tests/flow.rs::the_shared_craft_cloud_contract_works_over_either_drive", "crates/automation/tests/it/cloud.rs::onedrive_end_to_end", "crates/ui-egui/tests/it/cloud_drives.rs::onedrive_lists_and_opens_through_the_same_window"]
+notes = "Off until the owner connects an account with a client ID from their own Microsoft Entra project (PdfCraft ships none and no server sits between the app and the provider); the client ID is kept in the system keychain with the tokens, never in the preferences file. File > Cloud drives… opens a window: Connect (OAuth 2.0 authorization code with PKCE S256 and a loopback redirect on 127.0.0.1; the sign-in page opens in the system browser and PdfCraft never sees a password; a redirect with another state, path or Host is ignored; 5 minutes), Disconnect (Microsoft has no revoke call for a desktop app, so the saved tokens are deleted and PdfCraft stays listed at account.microsoft.com until the owner removes it there), a folder browser with breadcrumb, search by name and Load more, and Open, which downloads into the app's cache folder and opens it as File > Open does (PDF as it is; Word, Markdown, LaTeX, CSV and Excel through the in-process conversion). A PDF opened from the drive remembers its file and version: File > Save to drive saves it as Save does and uploads a new revision, asking first (Replace it, Save a copy instead, Cancel) when the file's eTag changed since; File > Save a copy to drive… picks a folder and a name for a new file, also for a document that did not come from a drive. Transfers run on their own thread with a progress bar and Cancel. Everything is bounded: https only (plain http only to this computer), no cookies, no redirect followed with a token attached, 30 s per call, 20 minutes and a 45 s stall per transfer, 4 MiB of JSON, 256 MiB per file, 200 items a page; tokens, codes and client secrets never appear in an error or a log. OneDrive through Microsoft Graph /me/drive: public client with PKCE, scopes Files.ReadWrite offline_access User.Read (the last only to show the account's name), authority https://login.microsoftonline.com/common unless Settings names another; children and search with paging (a next-page link is followed only on the Graph host), content download through its pre-authorized redirect (fetched without the token), simple upload up to 4 MB and an upload session in 3.75 MiB chunks above, conflictBehavior=rename for a copy so an existing file is never overwritten. SharePoint libraries, files shared with the owner and folders on other drives are not listed. The check and the write are two requests, so a write can still slip in between. The cloud_* tools are the headless counterpart (cloud_download opens into the session from memory; cloud_upload with an id refuses to replace a changed file unless overwrite is true). Tests run against a loopback server that speaks the OAuth and Microsoft Graph endpoints used; the real Microsoft endpoints have not been contacted by any test, so field-level differences from the documentation would only show in use. Not on the web build."
 
 [[feature]]
 id = "misc.share-links"
@@ -10460,3 +10555,27 @@ commands = []
 tools = []
 evidence = []
 notes = ""
+
+[[feature]]
+id = "misc.document-library"
+title = "Document library: an index in a synced folder, with full-text search"
+area = "N"
+tier = "P2"
+milestone = "M14"
+status = "shipped"
+commands = ["library.open", "library.add"]
+tools = ["library_add", "library_list", "library_search", "library_remove", "library_open", "library_tag"]
+evidence = ["crates/library/src/store.rs::adding_copies_the_file_into_the_library_and_stores_a_relative_path", "crates/library/src/store.rs::a_referenced_file_stays_where_it_is_and_is_marked_missing_when_it_goes", "crates/library/src/store.rs::two_macs_edits_merge_per_entry_and_the_conflict_copy_is_folded_in", "crates/library/src/store.rs::a_damaged_index_is_set_aside_not_overwritten", "crates/library/src/store.rs::an_index_still_downloading_is_not_replaced_by_an_empty_one", "crates/library/src/store.rs::search_finds_titles_tags_and_text_and_filters_by_tag", "crates/library/src/index.rs::a_hostile_index_loses_only_the_bad_entries", "crates/library/src/index.rs::merging_is_idempotent_and_associative", "crates/automation/tests/it/library.rs::a_document_is_added_listed_searched_opened_and_removed", "crates/automation/tests/it/library.rs::recognised_text_from_scan_and_ocr_is_searchable", "crates/automation/tests/it/library.rs::a_referenced_file_is_marked_missing_when_it_is_gone_and_never_deleted_by_remove", "crates/automation/tests/it/library.rs::root_confines_the_library_folder", "crates/ui-egui/tests/it/library.rs::the_library_lists_searches_filters_by_tag_and_opens_a_document", "crates/ui-egui/tests/it/library.rs::adding_the_current_document_copies_or_references_it_and_a_gone_file_is_marked_missing"]
+notes = "Library window (View > Library, and a card on Home): an index of documents (id, title, page count, tags, added and last-opened times, size, SHA-256, location) kept as JSON (library.json) in a library folder, default iCloud Drive's PdfCraft/ when iCloud Drive exists, else the app data folder, configurable. A file inside the folder is stored by a relative path so it resolves on every Mac; one elsewhere by absolute path and marked Missing when it is not on this Mac. Add to library copies the file into the folder (default) or references it in place. Writes are temp file plus rename. Edits from another Mac merge per entry (newest modified time wins, removals are tombstones kept 90 days) and sync conflict copies (library 2.json and the Dropbox and Syncthing spellings) are read, merged and retired; an index still downloading or damaged is never overwritten. Full-text search over titles, tags and the text layer the viewer already extracts (so recognised text from Scan & OCR counts), up to 200 KB per document in library-text.json; a document with no text layer is added with a note to run Scan & OCR. Search, tag filter, missing filter, tag editing, open on click, remove (the library's own copy is deleted, a referenced file never) and reveal in Finder. Not verified: a real iCloud Drive folder syncing between two Macs (conflicts are simulated by writing the copies the service writes). Not here: the web build, a lock between two processes writing in the same instant, and reading documents that need a password for their text (pass password to library_add)."
+
+[[feature]]
+id = "misc.vault"
+title = "Vault: encrypted documents in the synced folder, unlocked by passphrase or Touch ID"
+area = "N"
+tier = "P2"
+milestone = "M14"
+status = "partial"
+commands = ["vault.add", "vault.lock"]
+tools = ["vault_create", "vault_unlock", "vault_lock", "vault_add", "vault_list", "vault_open", "vault_save", "vault_remove"]
+evidence = ["crates/library/src/vault/crypto.rs::a_wrong_key_a_changed_byte_or_a_moved_file_does_not_open", "crates/library/src/vault/crypto.rs::known_answer_for_aes_256_gcm_through_the_same_calls", "crates/library/src/vault/crypto.rs::settings_from_a_hostile_file_are_bounded", "crates/library/src/vault/tests.rs::the_vault_opens_on_another_mac_from_the_synced_folder_with_the_passphrase", "crates/library/src/vault/tests.rs::nothing_readable_is_on_disk_and_the_document_comes_back_verified", "crates/library/src/vault/tests.rs::saving_encrypts_again_with_a_new_nonce_and_keeps_the_old_content_on_failure", "crates/library/src/vault/tests.rs::a_tampered_or_swapped_file_does_not_open", "crates/library/src/vault/tests.rs::a_session_locks_after_the_idle_time_and_use_pushes_it_back", "crates/library/src/vault/tests.rs::after_one_passphrase_unlock_the_cached_key_unlocks_without_the_passphrase", "crates/engine/src/tests.rs::a_document_kept_off_disk_is_never_snapshotted_for_recovery", "crates/automation/tests/it/library.rs::a_vault_document_is_encrypted_opened_in_memory_and_saved_encrypted", "crates/automation/tests/it/library.rs::a_locked_vault_gives_nothing_and_its_documents_leave_search", "crates/automation/tests/it/library.rs::after_a_passphrase_unlock_the_remembered_key_unlocks_without_one", "crates/automation/tests/it/library.rs::the_original_is_deleted_only_after_a_verified_round_trip_and_only_when_asked", "crates/automation/tests/it/library.rs::locking_closes_clean_vault_documents_and_never_throws_away_unsaved_work", "crates/automation/tests/it/library.rs::the_vault_locks_itself_after_the_idle_time", "crates/ui-egui/tests/it/library.rs::the_vault_is_created_filled_opened_from_memory_saved_encrypted_and_locked", "crates/ui-egui/tests/it/library.rs::a_locked_vault_keeps_unsaved_work_and_refuses_to_save_until_unlocked", "crates/ui-egui/tests/it/library.rs::the_remembered_key_unlocks_without_the_passphrase_and_the_vault_locks_when_idle_or_on_quit"]
+notes = "Encrypted documents in the Vault/ folder of the library folder, so they sync. Each document and its metadata (title, tags, page count, hash, text index) is its own AES-256-GCM file with a random nonce, a versioned header and the vault and item ids bound into the authentication, under random file names. The vault key is 256 random bits, stored only wrapped (AES-256-GCM) by a key from the passphrase through Argon2id (64 MiB, 3 passes), so any Mac opens the vault with the passphrase; Argon2 settings read from a file are bounded. A vault document opens decrypted in memory only (no path; kept out of crash recovery) and Save encrypts it again, atomically, read back and compared; the library never writes its plain content. Adding encrypts a copy, reads it back from disk and compares before it is reported verified; the original is deleted only after that, when asked, and never while it has unsaved changes. Vault documents are in library search only while the vault is unlocked. Locks on demand, on quit and after an idle time with no keyboard or pointer input (15 minutes by default, configurable, or never); locking closes clean vault tabs and keeps ones with unsaved changes. On a Mac the unwrapped key can be kept in the data protection keychain behind user presence (Touch ID or the login password), this device only, not synchronizable; elsewhere the passphrase is asked every time. Partial because that keychain path is not verified: it needs a build signed with a keychain access group, an unsigned build is refused by macOS (the app says so and keeps asking for the passphrase), and no test can show the Touch ID prompt. Not here: changing the passphrase, recovering a forgotten one, passwords of the PDFs themselves inside the vault window, and hiding file sizes and counts. Threat model and limits: crates/library/README.md."

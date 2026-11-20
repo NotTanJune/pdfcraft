@@ -389,3 +389,41 @@ fn a_blank_page_is_on_the_system_regions_paper() {
         );
     }
 }
+
+/// Markdown, CSV and Word files open as new PDFs typeset in process, and their tables export back
+/// out through the Export menu's commands.
+#[test]
+fn markdown_csv_and_word_files_open_as_pdfs_and_tables_export_as_csv_and_excel() {
+    let dir = std::env::temp_dir().join(format!("pdfcraft-convert-ui-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut app = PdfCraftApp::new();
+    app.set_option("language", "en").unwrap();
+    // A Word file made by the Word export of a one-line text document.
+    app.open_bytes("a.txt", None, b"Word paragraph".to_vec()).unwrap();
+    let docx = app.session.docs()[0].export_office(pdfcraft_engine::compare::OfficeFormat::Docx);
+    let csv: String = std::iter::once("Name,Amount\n".to_string()).chain((0..5).map(|i| format!("item {i},{}\n", i * 3))).collect();
+    app.open_bytes("notes.md", None, b"# Title\n\nSome **body** text".to_vec()).unwrap();
+    app.open_bytes("data.csv", Some(dir.join("data.csv").to_string_lossy().into_owned()), csv.into_bytes()).unwrap();
+    app.open_bytes("memo.docx", None, docx).unwrap();
+    let docs = app.session.docs();
+    let summary: Vec<(String, usize, bool)> = docs.iter().map(|d| (d.name.clone(), d.info.pages.len(), d.dirty)).collect();
+    assert_eq!(summary, [("a.pdf".to_string(), 1, true), ("notes.pdf".into(), 1, true), ("data.pdf".into(), 1, true), ("memo.pdf".into(), 1, true)]);
+    assert!(docs[2].path.is_none(), "a converted file has no PDF path yet: Save asks where");
+    // Export the CSV document's table: CSV, then Excel, through the menu commands.
+    app.active = Some(2);
+    let csv_path = dir.join("out.csv");
+    app.save_override = Some(csv_path.to_string_lossy().into_owned());
+    assert!(app.execute("export.csv"));
+    let text = std::fs::read_to_string(&csv_path).unwrap();
+    assert!(text.starts_with("Name,Amount\r\nitem 0,0\r\nitem 1,3\r\n") && text.contains("item 4,12"), "{text:?}");
+    let xlsx_path = dir.join("out.xlsx");
+    app.save_override = Some(xlsx_path.to_string_lossy().into_owned());
+    assert!(app.execute("export.xlsx"));
+    assert!(std::fs::read(&xlsx_path).unwrap().starts_with(b"PK"));
+    let tex_path = dir.join("out.tex");
+    app.save_override = Some(tex_path.to_string_lossy().into_owned());
+    assert!(app.execute("export.tex"));
+    assert!(std::fs::read_to_string(&tex_path).unwrap().contains("\\begin{tabular}"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

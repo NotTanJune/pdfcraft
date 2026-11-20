@@ -156,6 +156,12 @@ impl PdfCraftApp {
             show_secured_notice: true,
             text_links: true,
             always_default_view: false,
+            fetch_link_previews: false,
+            link_previews: Default::default(),
+            ai: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            library_ui: Default::default(),
+            cloud: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             watch: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -567,6 +573,9 @@ impl eframe::App for PdfCraftApp {
     /// Starts an update that waits for the exit. On macOS the process ends before the app is dropped.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.updates.exiting();
+        // The vault key leaves memory with the app.
+        #[cfg(not(target_arch = "wasm32"))]
+        self.library_quit();
     }
 
     /// Each frame's work before drawing: opens, operating-system and control-channel requests,
@@ -615,6 +624,9 @@ impl PdfCraftApp {
             self.show_reveal_errors();
             self.poll_pending_destinations();
         }
+        self.poll_ai();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_library(ctx);
         self.check_restored_recent();
         // Chinese wants its own faces before the Japanese ones (one baseline per line).
         let cjk = theme::CjkPreference::for_language(lang.code());

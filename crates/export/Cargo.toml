@@ -1,6 +1,6 @@
 [package]
 name = "pdfcraft-export"
-description = "Export a PDF to HTML, Word (.docx) and RTF from its paragraphs and images"
+description = "Export a PDF to HTML, Word (.docx), RTF, Markdown, LaTeX, Excel (.xlsx) and CSV from its paragraphs, tables and images"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,6 +16,10 @@ craft-mime.workspace = true
 craft-rtf = { workspace = true, features = ["doc"] }
 craft-wordmodel.workspace = true
 craft-docx.workspace = true
+# LaTeX, Excel and CSV exports.
+craft-latex.workspace = true
+craft-xlsx.workspace = true
+craft-csv.workspace = true
 craft-html = { git = "https://github.com/storytold/craft-libs", rev = "1546550b0d4b79b8156a1fefaac8b3b317a4aee0", version = "0.1.0", features = ["standalone"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 craft-pptx.workspace = true

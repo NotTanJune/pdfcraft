@@ -38,16 +38,24 @@ craft-update = { git = "https://github.com/storytold/craft-libs", version = "=0.
 craft-pdf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "8e03cd016d42032b867fef6bad86bc69bf2c1920", features = ["cos", "crypt", "filters"] }
 # The writers the Word and RTF exports map onto (storytold/craft-libs#793). craft-rtf, craft-wordmodel and
 # craft-docx move together: craft_rtf::doc::export takes its own revision's Document.
-craft-rtf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "b8eaa8e2f3561f9fa27fcf3b7f67ce915e93caa3" }
+craft-rtf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
 # Shared Base64 encoder; use the existing RTF revision to reuse its codepage dependency.
-craft-mime = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "b8eaa8e2f3561f9fa27fcf3b7f67ce915e93caa3" }
+craft-mime = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
 craft-csv = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 craft-xml = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "1546550b0d4b79b8156a1fefaac8b3b317a4aee0" }
 craft-image-codecs = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "a7c6c9d61c6b36f4aec55b044f257340083fd571" }
 craft-tiff = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 craft-jpeg = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
-craft-docx = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "b8eaa8e2f3561f9fa27fcf3b7f67ce915e93caa3" }
-craft-wordmodel = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "b8eaa8e2f3561f9fa27fcf3b7f67ce915e93caa3" }
+craft-docx = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+craft-wordmodel = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+# In-process conversion to PDF (storytold/craft-libs): craft-flow is the paragraph/table model that
+# craft-docx, craft-markdown and craft-latex read into; craft-xlsx and craft-sheet read workbooks.
+# craft-wordmodel, craft-flow, craft-docx, craft-markdown, craft-latex and craft-rtf share one
+# revision, because they exchange types.
+craft-flow = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+craft-latex = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+craft-xlsx = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+craft-sheet = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
 craft-pptx = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "010702ee9b030844c852939095b1da0d0656a890" }
 craft-drawingml = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "010702ee9b030844c852939095b1da0d0656a890" }
 craft-opc = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
@@ -77,10 +85,14 @@ pdfcraft-testkit = { path = "crates/testkit", version = "0.21.0" }
 pdfcraft-ocr = { path = "crates/ocr", version = "0.21.0" }
 pdfcraft-js = { path = "crates/js", version = "0.21.0" }
 pdfcraft-compare = { path = "crates/compare", version = "0.21.0" }
+pdfcraft-assist = { path = "crates/assist", version = "0.21.0" }
+pdfcraft-clouddrive = { path = "crates/clouddrive", version = "0.21.0" }
 pdfcraft-preflight = { path = "crates/preflight", version = "0.21.0" }
 pdfcraft-export = { path = "crates/export", version = "0.21.0" }
 pdfcraft-edit = { path = "crates/edit", version = "0.21.0" }
 pdfcraft-create = { path = "crates/create", version = "0.21.0" }
+pdfcraft-convert = { path = "crates/convert", version = "0.21.0" }
+pdfcraft-library = { path = "crates/library", version = "0.21.0" }
 pdfcraft-forms = { path = "crates/forms", version = "0.21.0" }
 pdfcraft-xfa = { path = "crates/xfa", version = "0.21.0" }
 pdfcraft-render = { path = "crates/render", version = "0.21.0" }

@@ -8,15 +8,25 @@
 
 use crate::CreateError;
 
-/// File extensions of the Office documents converted through LibreOffice.
+/// File extensions of the documents Create turns into PDF through the office path: the Office
+/// formats LibreOffice converts, and Markdown, LaTeX and delimited text, which `pdfcraft-convert`
+/// converts in process ([`DOCUMENT_EXTENSIONS`]; Word and Excel files go there first too, and to
+/// LibreOffice only when it cannot read them).
 pub const OFFICE_EXTENSIONS: &[&str] = &[
     // Word and Writer
     "doc", "docx", "docm", "dot", "dotx", "dotm", "odt", "ott", "rtf", //
     // Excel and Calc
     "xls", "xlsx", "xlsm", "xlt", "xltx", "xltm", "ods", "ots", //
     // PowerPoint and Impress
-    "ppt", "pptx", "pptm", "pot", "potx", "potm", "pps", "ppsx", "ppsm", "odp", "otp",
+    "ppt", "pptx", "pptm", "pot", "potx", "potm", "pps", "ppsx", "ppsm", "odp", "otp", //
+    // Text documents, converted in process
+    "md", "markdown", "tex", "latex", "csv", "tsv", //
+    // Binary Excel workbooks, converted in process
+    "xlsb",
 ];
+
+/// The text formats converted in process: any bytes are accepted, as for a `.txt` file.
+pub const DOCUMENT_EXTENSIONS: &[&str] = &["md", "markdown", "tex", "latex", "csv", "tsv"];
 
 /// The OLE compound-file signature of Office 97–2003 files (`.doc`, `.xls`, `.ppt`).
 const OLE: &[u8] = &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
@@ -37,9 +47,11 @@ fn office_extension(name: &str) -> Option<&'static str> {
 }
 
 /// Whether `bytes` named `name` is an Office document: an Office extension, and the bytes start
-/// like one (an OLE compound file, a ZIP package as OOXML and OpenDocument are, or RTF).
+/// like one (an OLE compound file, a ZIP package as OOXML and OpenDocument are, or RTF); or a
+/// Markdown, LaTeX or delimited text file ([`DOCUMENT_EXTENSIONS`]), whatever its bytes.
 pub fn is_office(name: &str, bytes: &[u8]) -> bool {
-    office_extension(name).is_some() && (bytes.starts_with(OLE) || bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"{\\rtf"))
+    let Some(ext) = office_extension(name) else { return false };
+    DOCUMENT_EXTENSIONS.contains(&ext) || bytes.starts_with(OLE) || bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"{\\rtf")
 }
 
 /// Convert the Office document `bytes` named `name` to PDF bytes with LibreOffice.

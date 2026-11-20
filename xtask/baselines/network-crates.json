@@ -70,5 +70,17 @@
     "name": "tokio",
     "reachable": true,
     "path": "pdfcraft-engine -> pdfcraft-print -> craft-print -> winprint -> reqwest -> tokio"
+  },
+  {
+    "crate": "pdfcraft-cli",
+    "name": "ureq",
+    "reachable": true,
+    "path": "pdfcraft-cli -> pdfcraft-automation -> pdfcraft-assist -> ureq"
+  },
+  {
+    "crate": "pdfcraft-automation",
+    "name": "ureq",
+    "reachable": true,
+    "path": "pdfcraft-automation -> pdfcraft-assist -> ureq"
   }
 ]

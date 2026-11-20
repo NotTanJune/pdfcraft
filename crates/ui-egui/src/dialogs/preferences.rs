@@ -830,6 +830,11 @@ fn card_documents_and_view(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens,
     }
     ctx.checkbox(ui, &mut app.text_links, tl!("Open web and email addresses written in the page text"), t);
     ctx.label_secondary(ui, tl!("Only web (http, https) and email addresses open, and PdfCraft asks first, as for other links."), t);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        ctx.checkbox(ui, &mut app.fetch_link_previews, tl!("Fetch web link previews"), t);
+        ctx.label_secondary(ui, tl!("Resting the pointer on a web link contacts that site to show its title and description."), t);
+    }
     ui.add_space(6.0);
 
     ui.horizontal(|ui| {

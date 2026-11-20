@@ -1,0 +1,40 @@
+[package]
+name = "pdfcraft-clouddrive"
+description = "Opt-in cloud drives (L4): Google Drive and OneDrive over their own APIs, with OAuth 2.0 (PKCE, loopback redirect) and tokens in the system keychain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# `mock::FakeCloud`, a loopback server that speaks the Google, Microsoft Graph and OAuth endpoints
+# this crate uses, for tests. Never enabled by a normal build.
+mock = ["pdfcraft-assist/mock"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+# Where the refresh token is kept (`secret::save_named`: the login keychain on macOS).
+pdfcraft-assist = { workspace = true }
+# The contract of a cloud provider's files and accounts (storytold/craft-libs, contracts only, no IO).
+# The same revision as craft-mcp-server, so the tree gains no new checkout.
+craft-cloud = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb2d4b299d87191a79444c6e4e02d69d9325059" }
+# Bounded http(s) URL parsing; no network operations of its own (also used by pdfcraft-assist).
+craft-http-url = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+sha2 = "0.11"
+base64 = "0.23"
+getrandom = "0.4"
+# The HTTP client craft-update already builds (MIT OR Apache-2.0): rustls with the operating
+# system's certificate verifier; no `cookies` feature, so no cookie jar.
+ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider", "_ring", "gzip", "platform-verifier"] }
+
+[dev-dependencies]
+pdfcraft-assist = { workspace = true, features = ["mock"] }

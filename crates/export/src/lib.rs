@@ -1,4 +1,4 @@
-//! pdfcraft-export — Export a PDF ▸ Word, HTML, RTF, Markdown (L4).
+//! pdfcraft-export — Export a PDF ▸ Word, HTML, RTF, Markdown, LaTeX, Excel and CSV (L4).
 //!
 //! The engine reduces each page to [`Page`]: paragraphs (text, box, size, bold/italic) and
 //! images (encoded bytes and box), in reading order. The writers turn that into a flowing
@@ -18,8 +18,10 @@ pub use zip::Zip;
 
 mod as_docx;
 mod as_html;
+mod as_latex;
 mod as_markdown;
 mod as_rtf;
+mod as_sheet;
 mod as_word;
 mod clip;
 mod flow;
@@ -30,10 +32,12 @@ use as_docx::MAX_MEDIA;
 pub(crate) use as_docx::hex;
 pub use as_docx::{docx, docx_with_language};
 pub use as_html::{html, html_simple, html_simple_with_language, html_with_language};
+pub use as_latex::latex;
 pub use as_markdown::markdown;
 #[cfg(test)]
 use as_markdown::{emphasis, paragraph};
 pub use as_rtf::{rtf, rtf_with_title, rtf_with_title_checked};
+pub use as_sheet::{csv, xlsx};
 pub use clip::{ClipBuilder, ClipSpan, ClipStyle, ClipText, MAX_CLIP_HTML_BYTES, MAX_CLIP_SPANS, MAX_CLIP_TEXT_BYTES, clip_html, font_family};
 pub(crate) use craft_html::standalone::esc;
 #[cfg(test)]

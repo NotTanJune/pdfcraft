@@ -25,6 +25,10 @@ pdfcraft-engine = { workspace = true }
 pdfcraft-cos = { workspace = true }
 pdfcraft-content = { workspace = true }
 pdfcraft-ocr = { workspace = true }
+# Ask AI and web link previews: opt-in network helpers (no network client on the web build).
+pdfcraft-assist = { workspace = true }
+# Google Drive and OneDrive (File > Cloud drives): off until an account is connected.
+pdfcraft-clouddrive = { workspace = true }
 pdfcraft-render = { workspace = true }
 pdfcraft-model = { workspace = true }
 pdfcraft-platform = { workspace = true }
@@ -62,6 +66,8 @@ getrandom = "0.4"
 arboard = { version = "3.6", default-features = false, features = ["image-data"] }
 # Waits for native file pickers off the UI thread (already in the tree through wgpu).
 pollster = "1.0"
+# The document library and the encrypted vault (desktop only: the web build has no folders to sync).
+pdfcraft-library = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
 # Discover configured font directories without linking libfontconfig or running a subprocess.
@@ -94,6 +100,12 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "HtmlIFrameElement", "HtmlImageElement", "HtmlCollection", "Node", "EventTarget", "Navigator", "RequestCache", "RequestInit", "Response", "Worker", "WorkerOptions", "WorkerType", "MessageEvent"] }
 
 [dev-dependencies]
+# A loopback HTTP server for the Ask AI and link preview tests.
+pdfcraft-assist = { workspace = true, features = ["mock"] }
+pdfcraft-clouddrive = { workspace = true, features = ["mock"] }
+# Cache folders and files for the Cloud drives tests and the Library tests (also a Linux-only
+# dev-dependency below).
+tempfile = "3.27"
 craft-update = { workspace = true }
 pdfcraft-xfa = { workspace = true }
 # A content stream that inflates past the renderer's limits, for the cut-content notice test.

@@ -122,8 +122,10 @@ pub(crate) fn hit(xf: &PageXform, info: &DocInfo, page: usize, links: &[LinkItem
         (link.index, Some(link))
     };
     let tip = link.map(|l| target_label(info, &l.target));
+    // The card the tip grows into while the pointer rests, for the tool that follows links.
+    let preview = link.filter(|_| tool == QuickTool::Select).and_then(|l| crate::link_preview::Target::of_link(&l.target));
     let declines_drag = tool == QuickTool::Link;
-    Some(Hit { tip, declines_drag, ..Hit::new(Owner::Link { index }, Layer::Link, egui::CursorIcon::PointingHand) })
+    Some(Hit { tip, preview, declines_drag, ..Hit::new(Owner::Link { index }, Layer::Link, egui::CursorIcon::PointingHand) })
 }
 
 /// What a link's tip says it goes to.

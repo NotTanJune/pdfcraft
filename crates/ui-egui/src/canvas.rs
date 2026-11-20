@@ -617,6 +617,8 @@ pub struct DocView {
     /// The selection whose action bar was closed by its Copy button: the bar stays hidden
     /// until the selection changes, as it does once a markup button consumes the selection.
     actions_dismissed: Option<Selection>,
+    /// The selection bar's Ask AI was pressed: the app opens the panel with the selection.
+    pub(crate) ask_ai: bool,
     /// The drag in progress started a text selection: the wheel scrolls the page during it
     /// (#721), which egui's scroll area refuses while anything is dragged.
     selection_drag: bool,
@@ -914,6 +916,8 @@ pub(crate) enum PageMenuAction {
     HandTool,
     MarqueeZoom,
     Copy,
+    /// Ask AI about the selected text.
+    AskAi,
     Paste(usize, [f64; 2]),
     /// Paste the copied comments, centred at this point of the page.
     PasteComments(usize, [f64; 2]),
@@ -937,6 +941,8 @@ pub(crate) struct PageMenuPerms {
     pub can_print: bool,
     pub can_copy: bool,
     pub can_copy_items: bool,
+    /// Text is selected and may be copied out: Ask AI can take it.
+    pub can_ask_ai: bool,
     pub can_paste: bool,
     /// Copied comments wait to be pasted, and comments may be added.
     pub can_paste_comments: bool,
@@ -973,6 +979,9 @@ pub(crate) fn default_page_context_menu(ui: &mut egui::Ui, page: usize, at: [f64
         ui,
         A::Copy,
     );
+    if perms.can_ask_ai {
+        pick(ui.button(tl!("Ask AI")), ui, A::AskAi);
+    }
     pick(
         ui.add_enabled(
             perms.can_paste,
@@ -1119,6 +1128,7 @@ impl DocView {
             selection: None,
             all_text: false,
             actions_dismissed: None,
+            ask_ai: false,
             selection_drag: false,
             selection_drag_ended: false,
             clicks: 0,
@@ -1447,6 +1457,10 @@ struct PageEnv<'a> {
 struct PageOut {
     canvas_action: Option<comments::CanvasAction>,
     clicked_link: Option<LinkTarget>,
+    /// The click on the link held ⌘ (Ctrl): a web address opens at once, with no question.
+    open_link_now: bool,
+    /// The card the pointer's rest on a link brings: where the link goes.
+    link_preview: Option<crate::link_preview::Hover>,
     /// The JavaScript link clicked, by page and annotation index (0-based), to run its action.
     javascript_link: Option<(usize, usize)>,
     comment_notice: Option<&'static str>,
@@ -2013,6 +2027,8 @@ fn draw_pages(
     let PageOut {
         mut canvas_action,
         clicked_link,
+        open_link_now,
+        link_preview: _,
         javascript_link,
         copy_selected,
         mut field_menu,
@@ -2052,7 +2068,14 @@ fn draw_pages(
         view.cursor.claim(Layer::Drag, egui::CursorIcon::None);
     }
     // The pages' one cursor, from the claim on the highest layer the tool reaches, and the tip.
-    let hover_text = pointer.filter(|_| unobstructed && !hide_pointer).zip(view.cursor.resolve(ui.ctx(), tool));
+    let tip = view.cursor.resolve(ui.ctx(), tool);
+    let card = view.cursor.take_preview();
+    // A link that goes somewhere a card can show draws the tip itself, as the card's first line.
+    let shown = pointer.filter(|_| unobstructed && !hide_pointer);
+    let (hover_text, hover_card) = match (shown, tip, card) {
+        (Some(pos), Some(tip), Some(target)) => (None, Some(crate::link_preview::Hover { pos, tip, target })),
+        (shown, tip, _) => (shown.zip(tip), None),
+    };
     // ScrollArea ignores the wheel while any widget is dragged, so a text-selection drag
     // scrolls the page itself (#721). After the page loop, so it keeps scrolling once the
     // pointer leaves the selection's page for the gap or the next page; over the whole
@@ -2254,6 +2277,7 @@ fn draw_pages(
             can_print: doc.allows_printing(),
             can_copy,
             can_copy_items,
+            can_ask_ai: can_copy && has_text,
             can_paste,
             can_paste_comments: allowed && can_paste_comments,
             has_annotations: !info.annotations.is_empty(),
@@ -2267,6 +2291,8 @@ fn draw_pages(
     *out = PageOut {
         canvas_action,
         clicked_link,
+        open_link_now,
+        link_preview: hover_card,
         javascript_link,
         comment_notice,
         copy_comments,
@@ -2956,6 +2982,7 @@ pub(crate) fn follow_link(
     app: &mut PdfCraftApp,
     index: usize,
     target: Option<LinkTarget>,
+    open_web_now: bool,
 ) -> Option<(pdfcraft_engine::DocId, String, pdfcraft_render::RemoteDestination)> {
     let view_id = app.views[index].id;
     match target? {
@@ -2965,6 +2992,8 @@ pub(crate) fn follow_link(
                 view.go_to_dest(p, dest, &doc.info);
             }
         }
+        // ⌘-click (Ctrl-click) on a web address opens it at once; any other click asks first.
+        LinkTarget::Uri(u) if open_web_now => app.open_document_url_now(&u, crate::LinkOrigin::Link),
         LinkTarget::Uri(u) => app.request_document_url(&u, crate::LinkOrigin::Link),
         LinkTarget::SetLayers { changes, preserve_rb } => set_layers(app, index, &changes, preserve_rb),
         LinkTarget::RemoteGoTo { file, destination, .. } => return Some((view_id, file, destination)),
@@ -3516,6 +3545,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     let PageOut {
         canvas_action,
         clicked_link,
+        open_link_now,
+        link_preview,
         javascript_link,
         comment_notice,
         copy_comments,
@@ -3623,7 +3654,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         None => {}
     }
     schedule_presentation_turn(ui, view, present, clicked_link.is_some() || on_object && present.is_some());
-    let remote_open = follow_link(app, index, clicked_link);
+    let remote_open = follow_link(app, index, clicked_link, open_link_now);
+    app.show_link_preview(ui.ctx(), index, link_preview);
     if let Some((page, link)) = javascript_link {
         let id = app.views[index].id;
         app.run_link_script(id, page, link);
@@ -3821,6 +3853,7 @@ fn apply_frame_requests(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui, 
                 app.copy_page_image(page, image);
             }
         }
+        Some(PageMenuAction::AskAi) => app.ask_ai_about_selection(index),
         Some(PageMenuAction::Paste(page, at)) => {
             app.paste_image_at(page, at);
         }
@@ -3914,6 +3947,9 @@ fn apply_frame_requests(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui, 
     }
     if copy_selected {
         app.execute("edit.copy");
+    }
+    if std::mem::take(&mut app.views[index].ask_ai) {
+        app.ask_ai_about_selection(index);
     }
     if copy_comments {
         app.execute("comment.copy");

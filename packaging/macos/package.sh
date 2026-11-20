@@ -10,6 +10,13 @@
 #   MACOS_SIGN_IDENTITY   codesign identity (name or SHA-1). Default "-" = ad-hoc (local testing;
 #                         Gatekeeper will reject the result on other Macs). In CI, import-cert.sh sets it.
 #   MACOS_KEYCHAIN        keychain holding the identity (optional)
+#   MACOS_PROVISIONING_PROFILE
+#                         a macOS provisioning profile (optional; needs a real identity). The app is
+#                         then signed under the profile's App ID, with that ID's keychain access
+#                         group, so the vault can keep its key behind Touch ID (crates/library). The
+#                         bundle identifier comes from the profile, so no personal ID is committed.
+#   MACOS_BUNDLE_ID       the bundle identifier, needed when the profile's App ID is a wildcard
+#                         (TEAM.* from Xcode's automatic signing); it must match that wildcard.
 # Notarization (env; all three needed, and a real identity):
 #   APPLE_ID, APPLE_PASSWORD (app-specific password), APPLE_TEAM_ID
 set -euo pipefail
@@ -23,7 +30,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --arch) ARCH="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=1; shift ;;
-    -h | --help) sed -n '2,16p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -52,7 +59,33 @@ else
   warn "macOS: APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID incomplete; signed but not notarized"
 fi
 
-echo "==> PdfCraft $VERSION for macOS ($ARCH), identity: $IDENTITY, notarize: $NOTARIZE"
+# ---- provisioning profile (optional) -------------------------------------------------------------
+PROFILE="${MACOS_PROVISIONING_PROFILE:-}"
+BUNDLE_ID=""
+APP_ENTITLEMENTS="$HERE/entitlements.plist"
+if [[ -n "$PROFILE" ]]; then
+  [[ "$IDENTITY" = "-" ]] && { echo "error: MACOS_PROVISIONING_PROFILE needs MACOS_SIGN_IDENTITY" >&2; exit 2; }
+  [[ -f "$PROFILE" ]] || { echo "error: no provisioning profile at $PROFILE" >&2; exit 2; }
+  PROFILE_PLIST="$(mktemp)"
+  security cms -D -i "$PROFILE" >"$PROFILE_PLIST"
+  PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$PROFILE_PLIST")"
+  TEAM_IDENTIFIER="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.team-identifier' "$PROFILE_PLIST")"
+  rm -f "$PROFILE_PLIST"
+  PROFILE_BUNDLE="${PROFILE_APP_ID#"$TEAM_IDENTIFIER".}"
+  [[ "$PROFILE_BUNDLE" = "$PROFILE_APP_ID" ]] && { echo "error: the profile's App ID does not start with its team" >&2; exit 2; }
+  BUNDLE_ID="${MACOS_BUNDLE_ID:-$PROFILE_BUNDLE}"
+  # A wildcard App ID (`*` or `prefix.*`) covers any bundle ID it matches; an explicit one only itself.
+  # shellcheck disable=SC2053 # the profile's App ID is the glob
+  if [[ -z "$BUNDLE_ID" ]] || [[ "$BUNDLE_ID" = *"*"* ]] || [[ "$BUNDLE_ID" != $PROFILE_BUNDLE ]]; then
+    echo "error: bundle ID '${BUNDLE_ID}' is not covered by the profile's App ID '$PROFILE_BUNDLE' (set MACOS_BUNDLE_ID)" >&2
+    exit 2
+  fi
+  APP_IDENTIFIER="$TEAM_IDENTIFIER.$BUNDLE_ID"
+  # The macOS association repair compares against the running bundle's identifier.
+  export PDFCRAFT_MACOS_BUNDLE_ID="$BUNDLE_ID"
+fi
+
+echo "==> PdfCraft $VERSION for macOS ($ARCH), identity: $IDENTITY, notarize: $NOTARIZE${BUNDLE_ID:+, bundle: $BUNDLE_ID}"
 
 # ---- build -------------------------------------------------------------------------------------
 if [[ "$SKIP_BUILD" = 0 ]]; then
@@ -130,13 +163,29 @@ stage_models "$APP/Contents/Resources/models"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@SHORT_VERSION@/$SHORT_VERSION/g" \
   -e "s/@BUILD_SHA@/${PDFCRAFT_BUILD_SHA:-unknown}/g" \
   "$HERE/Info.plist.in" >"$APP/Contents/Info.plist"
+if [[ -n "$BUNDLE_ID" ]]; then
+  plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
+  cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+  # The base entitlements plus the profile's App ID, team and that App ID's own keychain group:
+  # the data protection keychain (the only one with Touch ID access control) needs them.
+  APP_ENTITLEMENTS="$WORK/entitlements.plist"
+  cp "$HERE/entitlements.plist" "$APP_ENTITLEMENTS"
+  # PlistBuddy, not `plutil -insert`: plutil reads the dots in these keys as a key path.
+  /usr/libexec/PlistBuddy \
+    -c "Add :com.apple.application-identifier string $APP_IDENTIFIER" \
+    -c "Add :com.apple.developer.team-identifier string $TEAM_IDENTIFIER" \
+    -c "Add :keychain-access-groups array" \
+    -c "Add :keychain-access-groups:0 string $APP_IDENTIFIER" \
+    "$APP_ENTITLEMENTS"
+  plutil -lint "$APP_ENTITLEMENTS"
+fi
 plutil -lint "$APP/Contents/Info.plist"
 printf 'APPL????' >"$APP/Contents/PkgInfo"
 
 # Sign inside-out: nested code first, then the bundle itself (no --deep on the final signature).
 # Today the only nested code is the main executable; frameworks/helpers would be signed here too.
-sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP/Contents/MacOS/PdfCraft"
-sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP"
+sign --options runtime --entitlements "$APP_ENTITLEMENTS" "$APP/Contents/MacOS/PdfCraft"
+sign --options runtime --entitlements "$APP_ENTITLEMENTS" "$APP"
 codesign --verify --strict --deep --verbose=2 "$APP"
 
 if [[ "$NOTARIZE" = 1 ]]; then

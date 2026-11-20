@@ -70,7 +70,10 @@ impl Session {
                 "{name}: this file type can't be converted; use a PDF, an image, a .txt file or a Word, Excel or PowerPoint file"
             )));
         };
-        if kind == SourceKind::Office && office == Office::Refuse {
+        // Word, Excel, Markdown, LaTeX and CSV files are typeset in process in milliseconds, so
+        // the frame thread may do it; any other Office file waits for LibreOffice.
+        let in_process = crate::DocumentFormat::of_name(name).is_some();
+        if kind == SourceKind::Office && office == Office::Refuse && !in_process {
             return Err(EditError::Source(format!(
                 "{name}: Word, Excel and PowerPoint files can't be added here yet; open it with File ▸ Open, which converts it to a PDF"
             )));
@@ -81,6 +84,11 @@ impl Session {
             SourceKind::Pdf => open_source(name, bytes).map(|_| bytes.clone()),
             SourceKind::Image => self.create_from_images(&[(name.to_string(), bytes.to_vec())]),
             SourceKind::Text => self.create_from_text(title, &decode_text(bytes)),
+            // On the frame thread a file is never handed to LibreOffice, even when the in-process
+            // reader could not read it: that would block the interface for seconds.
+            SourceKind::Office if office == Office::Refuse => {
+                crate::convert_document(name, bytes, &crate::ConvertSettings::default()).map(|done| done.pdf)
+            }
             SourceKind::Office => office_to_pdf(name, bytes),
         })
         .map_err(|_| EditError::Source(format!("{name}: the file could not be read")))?;

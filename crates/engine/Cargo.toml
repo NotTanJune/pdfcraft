@@ -35,6 +35,8 @@ pdfcraft-preflight = { workspace = true }
 pdfcraft-export = { workspace = true }
 pdfcraft-fonts = { workspace = true }
 pdfcraft-create = { workspace = true }
+# Word, Markdown, LaTeX, CSV and Excel files to PDF in process (LibreOffice stays the fallback).
+pdfcraft-convert = { workspace = true }
 pdfcraft-model = { workspace = true }
 pdfcraft-geom = { workspace = true }
 thiserror = { workspace = true }

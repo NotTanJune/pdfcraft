@@ -1,0 +1,19 @@
+Label = "Ask AI"
+Button "Close" [off]
+Label = "AI is off until you add an API key."
+Button "Connection" [on]
+Label = "Endpoint"
+TextInput "Endpoint" = "https://api.openai.com/v1"
+Label = "Model"
+TextInput "Model" = "gpt-6-luna"
+Label = "API key"
+PasswordInput "API key"
+Button "Save key" [disabled]
+Button "Remove key" [disabled]
+Label = "Asking sends the selected text to this endpoint."
+Label = "Select text on a page, then choose Ask AI."
+Label = "Nothing selected"
+Button "Use selection"
+MultilineTextInput
+CheckBox "Send this page's text too" [off]
+Button "Ask" [disabled]

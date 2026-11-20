@@ -64,6 +64,8 @@ impl Layer {
 struct Claim {
     icon: CursorIcon,
     tip: Option<String>,
+    /// What the tip's card shows once the pointer rests (a link's destination).
+    preview: Option<crate::link_preview::Target>,
 }
 
 /// What a description tells about, from the least up: a higher one shows over a lower one.
@@ -83,6 +85,8 @@ pub(crate) struct PageCursor {
     claims: [Option<Claim>; LAYERS.len()],
     /// What lies under the pointer says ([`PageCursor::describe`]).
     description: Option<(Subject, String)>,
+    /// The card of the claim that won the last [`PageCursor::resolve`], for [`PageCursor::take_preview`].
+    preview: Option<crate::link_preview::Target>,
 }
 
 impl PageCursor {
@@ -94,8 +98,14 @@ impl PageCursor {
 
     /// As [`Self::claim`], with `tip` beside the pointer where the claim wins.
     pub(crate) fn claim_with_tip(&mut self, layer: Layer, icon: CursorIcon, tip: Option<String>) {
+        self.claim_with_preview(layer, icon, tip, None);
+    }
+
+    /// As [`Self::claim_with_tip`], with the card the tip grows into where the claim wins and the
+    /// pointer rests (a link's destination).
+    pub(crate) fn claim_with_preview(&mut self, layer: Layer, icon: CursorIcon, tip: Option<String>, preview: Option<crate::link_preview::Target>) {
         if let Some(slot) = self.claims.get_mut(layer as usize) {
-            *slot = Some(Claim { icon, tip });
+            *slot = Some(Claim { icon, tip, preview });
         }
     }
 
@@ -128,12 +138,19 @@ impl PageCursor {
     /// returns the tip: that claim's own, or else the description. With no such claim the cursor
     /// is left as it is. The claims are spent: the next frame starts with none.
     pub(crate) fn resolve(&mut self, ctx: &egui::Context, tool: QuickTool) -> Option<String> {
-        let PageCursor { claims, description } = std::mem::take(self);
+        let PageCursor { claims, description, preview: _ } = std::mem::take(self);
         let winner = Self::winner(claims, tool);
         if let Some(w) = &winner {
             ctx.set_cursor_icon(w.icon);
+            self.preview = w.preview.clone();
         }
         winner.and_then(|w| w.tip).or(description.map(|(_, text)| text))
+    }
+
+    /// The card of the claim that won the last [`Self::resolve`], once: where the link under the
+    /// pointer goes.
+    pub(crate) fn take_preview(&mut self) -> Option<crate::link_preview::Target> {
+        self.preview.take()
     }
 }
 
@@ -240,10 +257,10 @@ mod tests {
     fn the_highest_layer_the_tool_reaches_wins_with_its_tip() {
         let on_text_under_a_link = [(Layer::Text, CursorIcon::Text, None), (Layer::Link, CursorIcon::PointingHand, Some("https://example.org/"))];
         let select = winner(claims(&on_text_under_a_link), QuickTool::Select);
-        assert_eq!(select, Some(Claim { icon: CursorIcon::PointingHand, tip: Some("https://example.org/".into()) }));
+        assert_eq!(select, Some(Claim { icon: CursorIcon::PointingHand, tip: Some("https://example.org/".into()), preview: None }));
         // A markup tool selects the text there, and the link's tip goes with its hand.
         let highlight = winner(claims(&on_text_under_a_link), QuickTool::Comment(CommentTool::Highlight));
-        assert_eq!(highlight, Some(Claim { icon: CursorIcon::Text, tip: None }));
+        assert_eq!(highlight, Some(Claim { icon: CursorIcon::Text, tip: None, preview: None }));
         // A tool reaching nothing claimed leaves the cursor alone.
         assert_eq!(winner(claims(&[(Layer::Link, CursorIcon::PointingHand, None)]), QuickTool::Hand), None);
     }
@@ -251,7 +268,7 @@ mod tests {
     #[test]
     fn a_higher_claim_without_a_tip_hides_a_lower_ones_tip() {
         let field_over_a_link = [(Layer::Link, CursorIcon::PointingHand, Some("Go to page 2")), (Layer::Field, CursorIcon::Text, None)];
-        assert_eq!(winner(claims(&field_over_a_link), QuickTool::Select), Some(Claim { icon: CursorIcon::Text, tip: None }));
+        assert_eq!(winner(claims(&field_over_a_link), QuickTool::Select), Some(Claim { icon: CursorIcon::Text, tip: None, preview: None }));
     }
 
     #[test]

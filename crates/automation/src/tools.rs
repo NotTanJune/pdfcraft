@@ -361,7 +361,7 @@ pub fn tools() -> Vec<ToolDef> {
                 }),
                 &["paths"],
             )),
-        t("doc_create_multiple", "Create PDF from multiple files", "Convert several files (PDFs, PNG/JPEG/JPEG 2000/TIFF/GIF/BMP images, .txt files, Office documents through an installed LibreOffice) to PDF in one run. mode \"combine\" (default) joins them, in order, into one PDF with a bookmark per file; pages optionally chooses each file's pages, in step with paths (a range such as \"1-3, 6\" or null). mode \"separate\" writes one PDF per file into out_dir (files that are already PDFs are skipped; existing files are never overwritten) and reports each file's result.")
+        t("doc_create_multiple", "Create PDF from multiple files", "Convert several files (PDFs, PNG/JPEG/JPEG 2000/TIFF/GIF/BMP images, .txt files, Word, Excel, Markdown, LaTeX and CSV files typeset in process, other Office documents through an installed LibreOffice) to PDF in one run. mode \"combine\" (default) joins them, in order, into one PDF with a bookmark per file; pages optionally chooses each file's pages, in step with paths (a range such as \"1-3, 6\" or null). mode \"separate\" writes one PDF per file into out_dir (files that are already PDFs are skipped; existing files are never overwritten) and reports each file's result.")
             .cmd("create.multiple")
             .with(schema(
                 json!({
@@ -885,6 +885,88 @@ pub fn tools() -> Vec<ToolDef> {
             .with(schema(
                 json!({ "doc": doc(), "page": { "type": "integer", "minimum": 1 }, "index": { "type": "integer", "minimum": 1 }, "password": { "type": "string", "description": "Optional password for the linked PDF." }, "allow_absolute": { "type": "boolean", "description": "Explicitly allow an absolute local GoToR target (default false). Existing validation and --root confinement still apply." } }),
                 &["doc", "page", "index"],
+            )),
+        t("ai_ask", "Ask AI about selected text", "Ask the person's own OpenAI-compatible endpoint (OpenAI by default; Ollama, LM Studio and gateways work through base_url) a question about text selected on a page. Sends the selected text, its page number and, with context: true, the text of that page; answers cite pages as [p. 12], returned as citations (text, pages). dry_run: true returns the request that would be sent and sends nothing. The API key comes from the OS keychain (saved in PdfCraft's Ask AI panel) or the PDFCRAFT_AI_API_KEY environment variable and is only sent to the configured endpoint (PDFCRAFT_AI_BASE_URL / PDFCRAFT_AI_MODEL, else api.openai.com and gpt-6-luna): a call that names another base_url must pass its own api_key (avoid passing keys in arguments where an environment variable will do). The endpoint must be https, or http on this computer. Fails with `AI is off` when no key is set. Refused when the document does not allow copying. Network: one request, 120 s at most, no redirects followed.")
+            .ro()
+            .cmd("ai.ask")
+            .with(schema(
+                json!({
+                    "doc": doc(),
+                    "page": { "type": "integer", "minimum": 1, "description": "The page the text is on." },
+                    "text": { "type": "string", "description": "The selected text to ask about." },
+                    "question": { "type": "string", "description": "What to ask; empty asks for an explanation of the text." },
+                    "context": { "type": "boolean", "description": "Also send the text of the page around the selection (default false)." },
+                    "dry_run": { "type": "boolean", "description": "Return the request that would be sent, and send nothing." },
+                    "base_url": { "type": "string", "description": "Another endpoint, such as http://localhost:11434/v1. Needs api_key." },
+                    "model": { "type": "string", "description": "A model id the endpoint knows." },
+                    "api_key": { "type": "string", "description": "A key for this call only. Prefer the keychain or PDFCRAFT_AI_API_KEY." }
+                }),
+                &["doc", "page", "text"],
+            )),
+        t("link_preview", "Preview where a link goes", "What hovering a link shows. For a link to a page in this document (page and index from link_list): the destination page's name and the part of it the link goes to, drawn as a PNG. For a web link (or url): its address, host as the browser will connect to it (international hosts in punycode, flagged when they mix alphabets); with fetch: true also the page's title, description and site name, read from the first 512 KiB of the page: plain GET over http or https, no cookies, no scripts, at most 3 redirects, 5 s, and never an address on this computer or a private network. Nothing is fetched unless fetch is true.")
+            .ro()
+            .with(schema(
+                json!({
+                    "doc": doc(),
+                    "page": { "type": "integer", "minimum": 1, "description": "The page the link is on." },
+                    "index": { "type": "integer", "minimum": 1, "description": "The link's index from link_list." },
+                    "url": { "type": "string", "description": "A web address to preview, instead of a link of the document." },
+                    "fetch": { "type": "boolean", "description": "Fetch the web page's title and description (default false: nothing leaves the machine)." }
+                }),
+                &[],
+            )),
+        t("cloud_status", "Cloud drives: what is connected", "Google Drive and OneDrive: whether each one has a client ID (set in PdfCraft's Cloud drives window, or by PDFCRAFT_GOOGLE_CLIENT_ID / PDFCRAFT_MICROSOFT_CLIENT_ID) and whether an account is connected, with its email and name. Reads the keychain only; nothing is sent over the network. Cloud drives are off until the owner connects an account with cloud_connect.")
+            .ro()
+            .cmd("cloud.drives")
+            .with(schema(json!({ "provider": { "type": "string", "enum": ["google", "onedrive"], "description": "Only this provider (default both)." } }), &[])),
+        t("cloud_connect", "Connect a cloud drive", "Sign in to Google Drive or OneDrive with the owner's own OAuth client (authorization code with PKCE and a loopback redirect on 127.0.0.1). Opens the sign-in page in the system browser and waits (timeout_secs, default 300) for the person to agree there; PdfCraft never sees a password. The refresh token is kept in the operating system keychain; access tokens stay in memory. Needs the provider's client ID first (see cloud_status). Fails, without saving anything, if the person refuses or the time runs out.")
+            .cmd("cloud.drives")
+            .with(schema(json!({ "provider": { "type": "string", "enum": ["google", "onedrive"] }, "timeout_secs": { "type": "integer", "minimum": 5, "maximum": 900, "description": "How long to wait for the sign-in (default 300)." } }), &["provider"])),
+        t("cloud_disconnect", "Disconnect a cloud drive", "Revoke the saved token where the provider has an endpoint for it (Google; Microsoft has none for desktop apps, so PdfCraft stays listed at account.microsoft.com until the person removes it there) and delete the saved account from the keychain. Documents already opened stay open. Disconnecting an account that is not connected is not an error.")
+            .destructive()
+            .cmd("cloud.drives")
+            .with(schema(json!({ "provider": { "type": "string", "enum": ["google", "onedrive"] } }), &["provider"])),
+        t("cloud_list", "List a cloud folder", "List a folder of a connected Google Drive or OneDrive, or search it by file name: folders first, then the files PdfCraft opens (PDF, Word, Markdown, LaTeX, CSV, Excel, and Google Docs and Sheets, which download as PDF). folder is a folder id from an earlier listing (omit for the root); search covers the whole drive. A page holds up to limit items (default 50, at most 200) and next continues it as page; all: true reads up to 20 pages and says if it stopped early. Each item has id, name, folder, size, modified, mime, version (changes when the content does), can_write, pdf_export and url. One bounded request per page, 30 s each; the sign-in is refreshed automatically.")
+            .ro()
+            .cmd("cloud.drives")
+            .with(schema(
+                json!({
+                    "provider": { "type": "string", "enum": ["google", "onedrive"] },
+                    "folder": { "type": "string", "description": "A folder id (omit for the drive's root)." },
+                    "search": { "type": "string", "description": "Part of a file name; searches the whole drive." },
+                    "page": { "type": "string", "description": "The next value of the previous page." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
+                    "all": { "type": "boolean", "description": "Read every page, up to 20." }
+                }),
+                &["provider"],
+            )),
+        t("cloud_download", "Open a cloud file", "Download a file of a connected Google Drive or OneDrive (id from cloud_list) and open it as a document: a PDF as it is, a Word, Markdown, LaTeX, CSV or Excel file typeset into a new unsaved PDF in process, a Google Docs or Sheets file as its PDF export. Bounded: at most max_bytes (default and limit 256 MiB), 20 minutes, and a stall of 45 s ends it. The file is opened from memory; path also saves a copy of the downloaded file there, inside the allowed folder; an existing file is never replaced (the call fails before downloading). A downloaded PDF remembers its drive file and version, so cloud_upload with id can refuse to replace a file that changed since. Returns the document like doc_open, plus remote (provider, id, name, version) and converted.")
+            .cmd("cloud.drives")
+            .with(schema(
+                json!({
+                    "provider": { "type": "string", "enum": ["google", "onedrive"] },
+                    "id": { "type": "string", "description": "The file's id from cloud_list." },
+                    "path": { "type": "string", "description": "Also save the downloaded file here." },
+                    "password": { "type": "string", "description": "Open password of an encrypted PDF." },
+                    "max_bytes": { "type": "integer", "minimum": 1, "maximum": 268435456 }
+                }),
+                &["provider", "id"],
+            )),
+        t("cloud_upload", "Upload to a cloud drive", "Upload an open document (as it would be saved, unsaved edits included; the document itself is unchanged) or a file (path) to a connected Google Drive or OneDrive. Without id it makes a new file named name (default: the document's name) in folder (default: the root); an existing name is never overwritten (Google makes a second file, OneDrive renames the new one). With id it replaces that file's content: it refuses when the file changed on the drive since the document was opened with cloud_download (or since expected_version), and nothing is uploaded, unless overwrite: true. With no baseline at all it asks for one of them. Google Docs and Sheets files cannot take a PDF as content. Up to 4 MB goes in one request, larger files in chunks; at most 256 MiB. Returns the file's id, name and new version.")
+            .destructive()
+            .cmd("cloud.drives")
+            .with(schema(
+                json!({
+                    "provider": { "type": "string", "enum": ["google", "onedrive"] },
+                    "doc": doc(),
+                    "path": { "type": "string", "description": "A file to upload instead of a document." },
+                    "folder": { "type": "string", "description": "Folder id for a new file (default: the root)." },
+                    "name": { "type": "string", "description": "Name of a new file." },
+                    "id": { "type": "string", "description": "Replace the content of this existing file." },
+                    "expected_version": { "type": "string", "description": "The version (from cloud_list / cloud_download) the replacement is based on." },
+                    "overwrite": { "type": "boolean", "description": "Replace the file even if it changed on the drive." }
+                }),
+                &["provider"],
             )),
         t("link_add", "Add a link", "Add a link over rect on page that opens url or goes to to_page, shown at zoom: fit_page (default), fit_width, fit_height, fit_visible, actual, inherit (keep the reader's zoom) or a percentage. Appearance: visible (rectangle), color, width 1-3, highlight none/invert/outline/inset. Undoable.")
             .cmd("edit.link")
@@ -1470,9 +1552,9 @@ pub fn tools() -> Vec<ToolDef> {
                 json!({ "doc": doc(), "field": { "type": "string" }, "event": { "type": "string", "enum": ["keystroke", "format", "validate", "calculate", "mouse_up"] }, "script": { "type": "string" } }),
                 &["doc", "field", "event"],
             )),
-        t("doc_export_office", "Export to Word, PowerPoint, HTML, RTF or Markdown", "Export a PDF ▸ Word (.docx), PowerPoint (.pptx, one slide per page), HTML (.html, one file with images inline), RTF (.rtf) or Markdown (.md or .markdown: pipe tables, images left out), chosen by path's extension: text, headings, bold and italic. HTML uses rich styling by default; set html_mode to simple for CSS-free headings, paragraphs, emphasis and tables. Simple HTML keeps text and inline images but omits colour and layout styling. Word uses inferred tables, bordered only along the grid lines the page draws, and positioned editable shapes on pages with artwork, rotated or large text; each source page retains its size. Font matching and vector graphics remain limited. Export reads forms 50 deep and up to 50 000 a page, counting forms the page draws itself. Pages that go past either limit, or that have pictures past what one export may hold or decode, are listed in truncated_pages, with a warning; what was left out is missing.")
+        t("doc_export_office", "Export to Word, PowerPoint, HTML, RTF, Markdown, LaTeX, Excel or CSV", "Export a PDF ▸ Word (.docx), PowerPoint (.pptx, one slide per page), HTML (.html, one file with images inline), RTF (.rtf), Markdown (.md or .markdown: pipe tables, images left out), LaTeX (.tex: a standalone article that compiles with pdfLaTeX, XeLaTeX or LuaLaTeX; headings, lists, tables, bold, italic and links, pictures as their description), Excel (.xlsx: one sheet per table the page layout detects, named like `Page 3 Table 1`; a page with no table gives a sheet of its text, a paragraph in each row; numbers are numbers, the rest text, never formulas) or CSV (.csv: the same rows, tables one after another with an empty row between, UTF-8 with a byte order mark when the text has non-ASCII characters; text that starts like a formula gets a leading apostrophe; `table` picks one table or text sheet by its 1-based number), chosen by path's extension: text, headings, bold and italic. HTML uses rich styling by default; set html_mode to simple for CSS-free headings, paragraphs, emphasis and tables. Simple HTML keeps text and inline images but omits colour and layout styling. Word uses inferred tables, bordered only along the grid lines the page draws, and positioned editable shapes on pages with artwork, rotated or large text; each source page retains its size. Font matching and vector graphics remain limited. Export reads forms 50 deep and up to 50 000 a page, counting forms the page draws itself. Pages that go past either limit, or that have pictures past what one export may hold or decode, are listed in truncated_pages, with a warning; what was left out is missing.")
             .cmd("export.docx")
-            .with(schema(json!({ "doc": doc(), "path": { "type": "string" }, "html_mode": { "type": "string", "enum": ["rich", "simple"], "default": "rich" } }), &["doc", "path"])),
+            .with(schema(json!({ "doc": doc(), "path": { "type": "string" }, "html_mode": { "type": "string", "enum": ["rich", "simple"], "default": "rich" }, "table": { "type": "integer", "minimum": 1, "description": "CSV only: export just this table (or text sheet), numbered from 1 in the order the Excel export makes sheets." } }), &["doc", "path"])),
         t("pdfa_verify", "Verify PDF/A", "Standards ▸ Verify PDF/A compliance: the PDF/A-2b or 3b rules the document breaks (ISO 19005 clause, message, page, whether Save as PDF/A can fix it), plus what it declares.")
             .ro()
             .cmd("standards.pdfa")
@@ -1667,6 +1749,21 @@ pub fn tools() -> Vec<ToolDef> {
             }),
             &["from"],
         )),
+        t(
+            "doc_create_from_document",
+            "Create a PDF from a document file",
+            "Typeset a Word (.docx, .docm, .dotx, .dotm), Markdown (.md, .markdown), LaTeX (.tex), CSV or TSV (.csv, .tsv) or Excel (.xlsx, .xlsm, .xltx, .xltm, .xlsb) file into a new, unsaved PDF, in this process: no LibreOffice or other program runs. Headings (also bookmarks), paragraphs with bold, italic, underline, strike and colour, lists, tables (a CSV is one table whose header row repeats on every page; each visible sheet of a workbook is a heading and a table of the values its cells show, and a table wider than the page turns it on its side), pictures, links (web and mail addresses only) and footnotes are laid out on pages with selectable text, set in the standard fonts and the bundled Inter face where those lack a character. Not drawn: shapes, charts, text boxes, headers and footers; LaTeX macros are not expanded; fidelity to Word's own line breaking is not a goal. Returns the document like doc_open, plus `format`, `pages` and `warnings` (what was left out or could not be drawn, each said once). Formats this does not handle (.doc, .pptx, .odt, ...) open through doc_create_multiple and an installed LibreOffice. Save it with doc_save and a path.",
+        )
+        .with(schema(
+            json!({
+                "path": { "type": "string", "description": "The file to convert." },
+                "paper": { "type": "string", "enum": ["auto", "a4", "letter"], "description": "auto (default): a Word document's own page, US Letter for the rest." },
+                "margin": { "type": "number", "minimum": 0, "maximum": 200, "description": "Every margin in points (default: the paper's own, 72 for letters and 48 for tables)." },
+                "font_size": { "type": "number", "minimum": 4, "maximum": 48, "description": "Body text size in points (default 11); headings scale from it." },
+                "name": { "type": "string", "description": "Name for the new document (default derived from the file)." },
+            }),
+            &["path"],
+        )),
         t("doc_reduce", "Reduce file size", "Write a smaller copy of the document to `path` with Acrobat's Reduce File Size choices: colour and grey images above 225 ppi downsampled to 150 ppi and JPEG-compressed (medium quality), black-and-white images averaged down to 300 ppi above 450 ppi and each stored as CCITT Group 4 (or 1-bit Flate, once resampled or packed from more bits) whenever that is smaller, thumbnails dropped, identical fonts and images merged, unused objects dropped, compressed object streams. If the copy wouldn't be smaller, nothing is written and `written` is false. Images past what one run may decode stay as they are, counted in images_refused; streams it only stores with Flate past that stay LZW, uncounted. The open document is unchanged.")
             .cmd("optimize.reduce")
             .with(schema(json!({ "doc": doc(), "path": { "type": "string" } }), &["doc", "path"])),
@@ -1823,6 +1920,119 @@ pub fn tools() -> Vec<ToolDef> {
         .with(schema(json!({ "doc": doc() }), &["doc"])),
         t("edit_undo", "Undo", "Undo the last edit of a document.").cmd("edit.undo").with(schema(json!({ "doc": doc() }), &["doc"])),
         t("edit_redo", "Redo", "Redo the last undone edit of a document.").cmd("edit.redo").with(schema(json!({ "doc": doc() }), &["doc"])),
+        t("library_add", "Add a document to the library", "Add a PDF (path, or doc for an open document that has a file) to the document library: an index in a library folder (PDFCRAFT_LIBRARY_DIR, `library`, else iCloud Drive's PdfCraft folder or the app's data folder) that the owner's Macs share through that folder's sync. The file is copied into the folder by default (copy: true), or referenced in place (copy: false; its absolute path is marked missing on a Mac where the file is not). Reads the page count and the text (the text layer, including recognised text from Scan & OCR) for full-text search, kept up to 200 KB per document in a separate file. Adding the same file or content again updates the entry. Returns the entry, created, copied and a note when there is no text to search.")
+            .cmd("library.add")
+            .with(schema(
+                json!({
+                    "path": path_arg(),
+                    "doc": doc(),
+                    "library": { "type": "string", "description": "The library folder (default: the configured one)." },
+                    "copy": { "type": "boolean", "description": "Copy the file into the library folder (default true); false keeps it where it is." },
+                    "title": { "type": "string", "description": "Default: the document's title, else the file name." },
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "password": { "type": "string", "description": "Open password, for a protected PDF whose text should be indexed." }
+                }),
+                &[],
+            )),
+        t("library_list", "List the library", "The documents of the library, most recently opened or added first, each with its title, pages, tags, times, size, where it is and whether the file is missing on this computer; the tags in use; and warnings about index files that could not be read. A removed document is not listed.")
+            .ro()
+            .cmd("library.open")
+            .with(schema(
+                json!({
+                    "library": { "type": "string", "description": "The library folder (default: the configured one)." },
+                    "tag": { "type": "string", "description": "Only documents with this tag." },
+                    "missing_only": { "type": "boolean", "description": "Only documents whose file is missing here." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Default 200." }
+                }),
+                &[],
+            )),
+        t("library_search", "Search the library", "Search titles, tags and the extracted text of the library's documents: every word of query must be found (ignoring case); a title match ranks above a tag match above a text match; a text match comes with a snippet. While the vault is unlocked its documents are searched too (vault: true in a result); locked, they are never included. Returns at most `limit` results.")
+            .ro()
+            .with(schema(
+                json!({
+                    "query": { "type": "string" },
+                    "library": { "type": "string", "description": "The library folder (default: the configured one)." },
+                    "tag": { "type": "string", "description": "Only documents with this tag." },
+                    "vault": { "type": "boolean", "description": "Include the vault when it is unlocked (default true)." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 200, "description": "Default 20." }
+                }),
+                &["query"],
+            )),
+        t("library_remove", "Remove a document from the library", "Remove a document from the library by id. A copy the library made in its own folder is deleted; a file that was only referenced is never touched. The removal is remembered so the other Macs drop it too.")
+            .destructive()
+            .with(schema(json!({ "id": { "type": "string" }, "library": { "type": "string" } }), &["id"])),
+        t("library_open", "Open a library document", "Open a library document by id as a document of this session (like doc_open) and note that it was opened now. Fails with the path when the file is missing on this computer.")
+            .with(schema(json!({ "id": { "type": "string" }, "library": { "type": "string" }, "password": { "type": "string" } }), &["id"])),
+        t("library_tag", "Tag a library document", "Add or remove tags of a library document, or retitle it (title). With none of them, returns the entry.")
+            .with(schema(
+                json!({
+                    "id": { "type": "string" },
+                    "library": { "type": "string" },
+                    "add": { "type": "array", "items": { "type": "string" } },
+                    "remove": { "type": "array", "items": { "type": "string" } },
+                    "title": { "type": "string" }
+                }),
+                &["id"],
+            )),
+        t("vault_create", "Create the vault", "Create the encrypted vault in the library folder's Vault/ subfolder (so it syncs with the library) and leave it unlocked. The vault key is 256 random bits, stored only wrapped by a key derived from the passphrase with Argon2id (64 MiB, 3 passes); documents are encrypted one by one with AES-256-GCM. The passphrase needs 8 characters at least and cannot be recovered. Pass it as `passphrase` or in PDFCRAFT_VAULT_PASSPHRASE (an environment variable keeps it out of logs and shell history). With remember: true on a Mac the unwrapped key is also kept in this Mac's keychain behind Touch ID or the login password, if the build is signed for it; the result says when it is not.")
+            .with(schema(
+                json!({
+                    "passphrase": { "type": "string" },
+                    "library": { "type": "string" },
+                    "remember": { "type": "boolean", "description": "Remember the key on this Mac behind Touch ID (default false)." }
+                }),
+                &[],
+            )),
+        t("vault_unlock", "Unlock the vault", "Unlock the vault with its passphrase (`passphrase` or PDFCRAFT_VAULT_PASSPHRASE), or with neither: with the key this Mac remembered after an earlier unlock with remember: true, which makes macOS ask for Touch ID or the login password. The vault locks again with vault_lock and after the idle time (15 minutes).")
+            .with(schema(
+                json!({
+                    "passphrase": { "type": "string" },
+                    "library": { "type": "string" },
+                    "remember": { "type": "boolean", "description": "Remember the key on this Mac behind Touch ID (default false)." }
+                }),
+                &[],
+            )),
+        t("vault_lock", "Lock the vault", "Lock the vault: the key is wiped from this session, and documents opened from the vault are closed unless they have unsaved changes (those stay open and are listed; discard_changes: true closes them too). forget_device_key: true also removes the key this Mac remembers, so unlocking asks for the passphrase again.")
+            .cmd("vault.lock")
+            .with(schema(
+                json!({
+                    "library": { "type": "string" },
+                    "forget_device_key": { "type": "boolean" },
+                    "discard_changes": { "type": "boolean" }
+                }),
+                &[],
+            )),
+        t("vault_add", "Add a document to the vault", "Encrypt a PDF (path, or doc for an open document: its current state, edits included) into the vault, then read the encrypted file back from disk, decrypt it and compare it with what was added; the result says verified. Nothing readable is written: the document, its title, tags and text index are all encrypted, with random file names. delete_original: true deletes the source file, only after the verified round trip and never while an open document has unsaved changes. Needs the vault unlocked.")
+            .destructive()
+            .with(schema(
+                json!({
+                    "path": path_arg(),
+                    "doc": doc(),
+                    "library": { "type": "string" },
+                    "title": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "password": { "type": "string", "description": "Open password of a protected PDF, so its text can be indexed." },
+                    "delete_original": { "type": "boolean" }
+                }),
+                &[],
+            )),
+        t("vault_list", "List the vault", "The vault's state (exists, unlocked, whether this Mac remembers the key, the idle lock) and, while it is unlocked, its documents (optionally filtered by query over title, tags and text, and by tag). A locked vault lists no documents.")
+            .ro()
+            .with(schema(
+                json!({
+                    "library": { "type": "string" },
+                    "query": { "type": "string" },
+                    "tag": { "type": "string" }
+                }),
+                &[],
+            )),
+        t("vault_open", "Open a vault document", "Decrypt a vault document into memory and open it as a document of this session, with no file: no plaintext is written to disk and no crash-recovery copy is made of it. doc_save without a path (or vault_save) saves it by encrypting it again. A Save As to a path writes a plain file, because you asked for one. Needs the vault unlocked.")
+            .with(schema(json!({ "id": { "type": "string" }, "library": { "type": "string" }, "password": { "type": "string" } }), &["id"])),
+        t("vault_save", "Save a vault document", "Save an open document that came from vault_open by encrypting it again (a new random nonce, atomic replace, read back and compared). The old content stays if anything fails. Needs the vault unlocked.")
+            .with(schema(json!({ "doc": doc(), "library": { "type": "string" }, "password": { "type": "string" } }), &["doc"])),
+        t("vault_remove", "Remove a vault document", "Delete a document from the vault: its encrypted file is deleted and a marker remains so the other Macs drop it too. Needs the vault unlocked.")
+            .destructive()
+            .with(schema(json!({ "id": { "type": "string" }, "library": { "type": "string" } }), &["id"])),
         t("command_list", "List commands", "Every registered PdfCraft command with its menu, shortcut, whether it is enabled now, and the tool that automates it.")
             .ro()
             .with(schema(json!({ "doc": doc(), "filter":{"type":"string"}, "enabled_only":{"type":"boolean"} }), &[])),

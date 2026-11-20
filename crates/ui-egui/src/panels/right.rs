@@ -22,6 +22,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let mut sig_action: Option<crate::sign_ui::PanelAction> = None;
     let mut a11y_action: Option<crate::a11y_ui::PanelAction> = None;
     let mut compare_action: Option<crate::compare_ui::PanelAction> = None;
+    let mut ai_action: Option<crate::ai_ui::PanelAction> = None;
     let mut bm_rename = app.bookmark_rename.clone();
     let bm_editable = app.session.get(id).is_some_and(|d| d.allows_assembly() && d.read_only_reason.is_none());
     let bm_can_paste = app.bookmark_clipboard.is_some();
@@ -36,6 +37,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         let prefs = &app.comment_prefs;
         let sig_expanded = &mut app.sig_expanded;
         let a11y = &mut app.a11y;
+        let ai = &mut app.ai;
         let tags_state = &mut app.tags_state;
         let compare = &app.compare;
         let comment_allowed = doc.allows_annotation();
@@ -60,6 +62,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     RightPanel::Tags => ("Tags", None),
                     RightPanel::Search => ("Search", None),
                     RightPanel::Compare => ("Compare", compare.as_ref().filter(|c| c.new == id).map(|c| c.result.changes.len())),
+                    RightPanel::Assistant => ("Ask AI", None),
                 };
                 // Comments count like Acrobat (no replies); the replies go in small text below.
                 let replies = if panel == RightPanel::Comments { crate::comments_panel::reply_count(info) } else { 0 };
@@ -306,6 +309,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     }
                     RightPanel::Search => crate::search_ui::panel(ui, &t, view, info.pages.len()),
                     RightPanel::Compare => compare_action = crate::compare_ui::panel(ui, &t, compare, id),
+                    RightPanel::Assistant => ai_action = crate::ai_ui::panel(ui, &t, ai, id, info.pages.len()),
                     RightPanel::Attachments => {
                         let attachable = doc.allows_modification() && doc.read_only_reason.is_none();
                         if attachable {
@@ -438,6 +442,9 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     if let Some(a) = compare_action {
         app.compare_action(index, a);
     }
+    if let Some(a) = ai_action {
+        app.ai_action(index, a);
+    }
     match sig_action {
         Some(crate::sign_ui::PanelAction::Validate) => app.run_command("sign.validate"),
         Some(crate::sign_ui::PanelAction::GoTo(p)) => app.views[index].go_to_page(p),
@@ -487,7 +494,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             None => app.views[index].go_to_page(p),
         },
         Some(Nav::Action(target)) => {
-            if let Some((source, file, destination)) = crate::canvas::follow_link(app, index, Some(target)) {
+            if let Some((source, file, destination)) = crate::canvas::follow_link(app, index, Some(target), false) {
                 app.open_remote_link(source, file, destination);
             }
         }

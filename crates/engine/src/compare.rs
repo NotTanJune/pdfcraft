@@ -153,7 +153,7 @@ impl Session {
     }
 }
 
-/// Export a PDF ▸ Word, PowerPoint, HTML or RTF.
+/// Export a PDF ▸ Word, PowerPoint, HTML, RTF, Markdown, Excel, CSV or LaTeX.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OfficeFormat {
     Docx,
@@ -163,6 +163,12 @@ pub enum OfficeFormat {
     HtmlSimple,
     Rtf,
     Markdown,
+    /// Excel: a sheet for each table the pages hold.
+    Xlsx,
+    /// Comma separated values: the tables one after another.
+    Csv,
+    /// A standalone LaTeX article.
+    Latex,
 }
 
 impl OfficeFormat {
@@ -174,6 +180,9 @@ impl OfficeFormat {
             OfficeFormat::HtmlSimple => "html",
             OfficeFormat::Rtf => "rtf",
             OfficeFormat::Markdown => "md",
+            OfficeFormat::Xlsx => "xlsx",
+            OfficeFormat::Csv => "csv",
+            OfficeFormat::Latex => "tex",
         }
     }
 
@@ -184,6 +193,9 @@ impl OfficeFormat {
             "html" | "htm" => Some(OfficeFormat::Html),
             "rtf" => Some(OfficeFormat::Rtf),
             "md" | "markdown" => Some(OfficeFormat::Markdown),
+            "xlsx" => Some(OfficeFormat::Xlsx),
+            "csv" => Some(OfficeFormat::Csv),
+            "tex" | "latex" => Some(OfficeFormat::Latex),
             _ => None,
         }
     }
@@ -332,8 +344,15 @@ impl crate::Document {
     /// [`Self::export_office`], and the pages whose text it had to leave out
     /// ([`OfficeExport::truncated_pages`]).
     pub fn export_office_checked(&self, format: OfficeFormat) -> OfficeExport {
-        // Markdown leaves pictures out.
-        let (pages, mut truncated_pages) = self.export_pages_checked(!matches!(format, OfficeFormat::Markdown), MAX_EXPORT_IMAGE_BYTES);
+        self.export_office_table(format, None)
+    }
+
+    /// [`Self::export_office_checked`]; for CSV, `table` picks one table (or page of text) by its
+    /// 1-based number, in the order the Excel export makes sheets, instead of all of them.
+    pub fn export_office_table(&self, format: OfficeFormat, table: Option<usize>) -> OfficeExport {
+        // Markdown and the table and text formats leave pictures out.
+        let pictures = !matches!(format, OfficeFormat::Markdown | OfficeFormat::Xlsx | OfficeFormat::Csv | OfficeFormat::Latex);
+        let (pages, mut truncated_pages) = self.export_pages_checked(pictures, MAX_EXPORT_IMAGE_BYTES);
         let title = self.info.title.clone().unwrap_or_else(|| self.name.trim_end_matches(".pdf").to_string());
         // Word and HTML name the document's language (`/Lang`), so spelling is checked in it.
         let language = self.initial_view().language;
@@ -350,6 +369,9 @@ impl crate::Document {
                 rtf.into_bytes()
             }
             OfficeFormat::Markdown => pdfcraft_export::markdown(&pages).into_bytes(),
+            OfficeFormat::Xlsx => pdfcraft_export::xlsx(&pages, &title),
+            OfficeFormat::Csv => pdfcraft_export::csv(&pages, table).into_bytes(),
+            OfficeFormat::Latex => pdfcraft_export::latex(&pages, &title).into_bytes(),
         };
         OfficeExport { bytes, truncated_pages }
     }

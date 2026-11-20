@@ -52,6 +52,47 @@ impl Automation {
         Ok(summary(self.session.get(id).ok_or_else(|| failed("the document vanished"))?))
     }
 
+    /// Typesets a Word, Markdown, LaTeX, CSV or Excel file into a new document, in process.
+    pub(crate) fn doc_create_from_document(&mut self, a: &Args) -> Result<Value> {
+        use pdfcraft_engine::{ConvertSettings, DocumentFormat, Paper};
+        let path = self.resolve(a.str("path")?, false)?;
+        let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let format = DocumentFormat::of_name(&file).ok_or_else(|| {
+            ToolError::InvalidArgs(format!(
+                "{file}: not a document this converts in process (Word .docx, Markdown .md, LaTeX .tex, CSV .csv/.tsv or Excel .xlsx); other Office files open through doc_create_multiple and an installed LibreOffice"
+            ))
+        })?;
+        let paper = match a.opt_str("paper")?.unwrap_or("auto") {
+            "auto" => Paper::Auto,
+            "a4" => Paper::A4,
+            "letter" => Paper::Letter,
+            other => return Err(ToolError::InvalidArgs(format!("paper must be auto, a4 or letter, not {other:?}"))),
+        };
+        let mut settings = ConvertSettings { paper, ..ConvertSettings::default() };
+        if let Some(m) = a.opt_num("margin")? {
+            if !(0.0..=200.0).contains(&m) {
+                return Err(ToolError::InvalidArgs("margin must be between 0 and 200 points".into()));
+            }
+            settings.margin = Some(m);
+        }
+        if let Some(size) = a.opt_num("font_size")? {
+            if !(4.0..=48.0).contains(&size) {
+                return Err(ToolError::InvalidArgs("font_size must be between 4 and 48 points".into()));
+            }
+            settings.font_size = size;
+        }
+        let bytes = Arc::new(read_input(&path)?);
+        let done = pdfcraft_engine::convert_document(&file, &bytes, &settings).map_err(failed)?;
+        let stem = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s);
+        let name = a.opt_str("name")?.map(str::to_owned).unwrap_or_else(|| format!("{stem}.pdf"));
+        let id = self.session.open_new(name, done.pdf).map_err(failed)?;
+        let mut out = summary(self.session.get(id).ok_or_else(|| failed("the document vanished"))?);
+        out["format"] = json!(format.label());
+        out["pages"] = json!(done.pages);
+        out["warnings"] = json!(done.warnings);
+        Ok(out)
+    }
+
     pub(crate) fn page_transition_set(&mut self, a: &Args) -> Result<Value> {
         use pdfcraft_engine::{Transition, TransitionSpec};
         let n = self.doc(a)?.info.pages.len();

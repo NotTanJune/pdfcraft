@@ -74,6 +74,16 @@ impl PdfCraftApp {
             self.dialog = Some(crate::Dialog::LockSignatures);
             return false;
         }
+        // A document opened from the vault is saved by encrypting it again, never as a plain file
+        // (Save As asks for a place, as the person chose to take it out of the vault).
+        #[cfg(not(target_arch = "wasm32"))]
+        if matches!(target, SaveTarget::InPlace) && self.library_ui.is_vault_document(id) && self.session.get(id).is_some_and(|d| d.path.is_none()) {
+            let saved = self.save_vault_document(id);
+            if saved {
+                after(self);
+            }
+            return saved;
+        }
         let Some(doc) = self.session.get(id) else { return false };
         let (name, path) = (doc.name.clone(), doc.path.clone());
         // After Apply redactions, Save asks where and proposes the name with `_Redacted`.

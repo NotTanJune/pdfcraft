@@ -1741,3 +1741,137 @@ fn checked_rtf_reports_omitted_pictures_once_per_page_without_dropping_text() {
     assert!(output.contains("Surviving last-page text"));
     assert_eq!(output, crate::rtf_with_title(&pages, "Partial"));
 }
+
+/// The sheets of a workbook `bytes`: each sheet's name and its rows, a cell as its shown text
+/// (numbers as `#n`).
+type SheetRows = Vec<(String, Vec<Vec<String>>)>;
+
+fn read_xlsx(bytes: &[u8]) -> (craft_xlsx::Document, SheetRows) {
+    let book = craft_xlsx::Document::read(bytes, &craft_xlsx::Limits::default()).unwrap();
+    let sheets = book
+        .workbook
+        .sheets
+        .iter()
+        .zip(&book.worksheets)
+        .map(|(entry, ws)| {
+            let rows = ws.as_ref().map_or_else(Vec::new, |ws| {
+                ws.rows
+                    .iter()
+                    .map(|r| {
+                        r.cells
+                            .iter()
+                            .map(|c| match c.value.resolve(&book.shared_strings, false) {
+                                craft_xlsx::Value::Text(t) => t.to_string(),
+                                craft_xlsx::Value::Number(n) => format!("#{n}"),
+                                other => format!("{other:?}"),
+                            })
+                            .collect()
+                    })
+                    .collect()
+            });
+            (entry.name.clone(), rows)
+        })
+        .collect();
+    (book, sheets)
+}
+
+#[test]
+fn xlsx_has_a_sheet_per_detected_table_with_typed_cells() {
+    let p = table_page();
+    let bytes = xlsx(&[p.clone(), p], "Bill");
+    assert!(bytes.starts_with(b"PK"));
+    let (book, sheets) = read_xlsx(&bytes);
+    assert_eq!(sheets.iter().map(|s| s.0.as_str()).collect::<Vec<_>>(), ["Page 1 Table 1", "Page 2 Table 1"]);
+    let rows = &sheets[0].1;
+    assert_eq!(rows[0], ["Meter", "Unit", "Reading"]);
+    assert_eq!(rows[1], ["A1", "kWh", "#37414"], "a number is a number");
+    assert_eq!(rows[2][..2], ["A2", "kW"]);
+    assert_eq!(rows[3][0], "Totals");
+    // "Totals" spans two columns: one merged range over A4:B4.
+    let ws = book.worksheets[0].as_ref().unwrap();
+    assert_eq!(ws.part.merges.iter().map(|m| m.a1()).collect::<Vec<_>>(), ["A4:B4"]);
+    assert!(book.styles.is_some_and(|s| s.cell_xfs.len() == 2 && s.fonts.len() == 2), "regular and bold");
+}
+
+#[test]
+fn xlsx_numbers_are_plain_numbers_only_and_names_are_valid() {
+    let b = |t: &str, y: f64| Block {
+        text: t.into(),
+        rect: [72.0, y, 120.0, y + 12.0],
+        size: 11.0,
+        bold: false,
+        italic: false,
+        color: [0.0; 3],
+        rotation: 0.0,
+        space_around: [false; 2],
+    };
+    // One paragraph per row, in reading order, top of the page first.
+    let p = Page {
+        width: 612.0,
+        height: 792.0,
+        blocks: vec![b("007", 700.0), b("-12.5", 670.0), b("1e5", 640.0), b("=1+1", 610.0), b("1234567890123456", 580.0), b("12.", 550.0)],
+        images: Vec::new(),
+        background: None,
+        rules: Vec::new(),
+    };
+    let (_, sheets) = read_xlsx(&xlsx(&[p], ""));
+    assert_eq!(sheets[0].0, "Page 1");
+    let cells: Vec<&str> = sheets[0].1.iter().map(|r| r[0].as_str()).collect();
+    assert_eq!(cells, ["007", "#-12.5", "1e5", "=1+1", "1234567890123456", "12."], "codes, formulas and long digit strings stay text");
+    // Names: no forbidden characters, at most 31 long, unique.
+    let names = [
+        super::as_sheet::sheet_name("A/B:C*D?[E]\\", &[]),
+        super::as_sheet::sheet_name(&"x".repeat(60), &[]),
+        super::as_sheet::sheet_name("Page 1", &["Page 1".to_string()]),
+        super::as_sheet::sheet_name("", &[]),
+    ];
+    assert_eq!(names, ["A B C D  E".to_string(), "x".repeat(31), "Page 1 (2)".to_string(), "Sheet".to_string()]);
+}
+
+#[test]
+fn xlsx_of_a_page_without_a_table_is_its_text_lines() {
+    let (_, sheets) = read_xlsx(&xlsx(&[page(), page()], "Report"));
+    assert_eq!(sheets.iter().map(|s| s.0.as_str()).collect::<Vec<_>>(), ["Page 1", "Page 2"]);
+    let lines: Vec<&str> = sheets[0].1.iter().map(|r| r[0].as_str()).collect();
+    assert_eq!(lines.len(), 4, "{lines:?}");
+    assert!(lines.contains(&"Annual Report") && lines.contains(&"Overview"), "{lines:?}");
+    // No pages at all: one empty sheet, still a workbook.
+    let (_, empty) = read_xlsx(&xlsx(&[], "Nothing"));
+    assert_eq!(empty.len(), 1);
+    assert_eq!(empty[0].0, "Nothing");
+}
+
+#[test]
+fn csv_is_rfc_4180_with_tables_separated_and_formulas_defused() {
+    let p = table_page();
+    assert_eq!(csv(std::slice::from_ref(&p), None), "Meter,Unit,Reading\r\nA1,kWh,37414.00\r\nA2,kW,\r\nTotals,\r\n");
+    // Two tables: an empty row between; `only` picks one; an out-of-range number picks none.
+    let two = csv(&[p.clone(), p.clone()], None);
+    assert_eq!(two.matches("Meter,Unit,Reading").count(), 2);
+    assert!(two.contains("Totals,\r\n\r\nMeter"), "{two:?}");
+    assert_eq!(csv(&[p.clone(), p.clone()], Some(2)), csv(std::slice::from_ref(&p), None));
+    assert_eq!(csv(std::slice::from_ref(&p), Some(0)), "");
+    assert_eq!(csv(std::slice::from_ref(&p), Some(9)), "");
+    // Quotes, commas and line breaks are quoted; formulas get an apostrophe; non-ASCII gets a BOM.
+    let mut q = p;
+    q.blocks[0].text = "a, \"b\"".into();
+    q.blocks[1].text = "=SUM(A1)".into();
+    q.blocks[2].text = "-x".into();
+    q.blocks[3].text = "-5".into();
+    q.blocks[4].text = "café".into();
+    let out = csv(&[q], None);
+    assert!(out.starts_with("\u{feff}\"a, \"\"b\"\"\",'=SUM(A1),'-x\r\n-5,café,"), "{out:?}");
+    assert!(csv(&[], None).is_empty());
+}
+
+#[test]
+fn latex_is_a_standalone_article_of_the_flowing_pages() {
+    let tex = latex(&[page()], "Report");
+    assert!(tex.contains("\\documentclass") && tex.contains("\\begin{document}") && tex.contains("\\end{document}"), "{tex}");
+    assert!(tex.contains("Annual Report") && tex.contains("Overview"), "{tex}");
+    // Characters TeX reads as commands are escaped, never written as they are.
+    assert!(tex.contains("\\&") && tex.contains("\\textless") || tex.contains("$<$") || !tex.contains("<body>"), "{tex}");
+    let table = latex(&[table_page()], "Bill");
+    assert!(table.contains("\\begin{tabular}") && table.contains("Reading") && table.contains("37414.00"), "{table}");
+    assert!(latex(&[], "").contains("\\documentclass"));
+}

@@ -135,6 +135,7 @@ impl Automation {
             return Err(failed("the document has unsaved changes: save it with doc_save, or pass discard_changes: true"));
         }
         self.session.close(id);
+        self.forget_vault_document(id);
         self.renderers.remove(&id);
         self.texts.remove(&id);
         self.listed.retain(|(d, _), _| *d != id);
@@ -144,6 +145,10 @@ impl Automation {
     }
 
     pub(crate) fn doc_save(&mut self, a: &Args) -> Result<Value> {
+        // A document opened from the vault has no file: saving it encrypts it again.
+        if a.opt_str("path")?.is_none() && self.doc(a)?.path.is_none() && self.is_vault_document(self.doc(a)?.id) {
+            return self.vault_save(a);
+        }
         self.doc_save_with(a, write_atomic)
     }
 

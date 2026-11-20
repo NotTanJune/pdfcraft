@@ -35,6 +35,10 @@ pub struct Document {
     /// The generation last handed out by `autosave_snapshots`, or another one when storing that
     /// snapshot failed (`autosave_failed`), so it is due again.
     pub(crate) snapshot_generation: u64,
+    /// The app must not write this document's content anywhere on its own: no crash-recovery
+    /// snapshot. Set for documents opened from the encrypted vault, which are saved by encrypting
+    /// them again, never as a plain file the person did not ask for.
+    pub keep_off_disk: bool,
     /// Why the document cannot be edited (e.g. encryption), if so.
     pub read_only_reason: Option<String>,
     /// Interactive form fields of the current state (empty without a form).

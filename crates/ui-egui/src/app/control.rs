@@ -72,6 +72,7 @@ impl PdfCraftApp {
                     "tags" => Some(RightPanel::Tags),
                     "search" => Some(RightPanel::Search),
                     "compare" => Some(RightPanel::Compare),
+                    "ai" => Some(RightPanel::Assistant),
                     "none" => None,
                     other => return Err(format!("unknown panel {other}")),
                 }
@@ -389,6 +390,17 @@ impl PdfCraftApp {
                     _ => return Err("hide-empty-highlight-hover must be true or false".into()),
                 };
             }
+            ("fetch-link-previews", _) => {
+                self.fetch_link_previews = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("fetch-link-previews must be true or false".into()),
+                };
+            }
+            ("ai-base-url", _) => self.ai.set_base_url(value),
+            ("ai-model", _) => self.ai.set_model(value),
+            #[cfg(not(target_arch = "wasm32"))]
+            ("library-dir", _) => self.library_ui.set_folder(value)?,
             ("text-links", _) => {
                 self.text_links = match value {
                     "true" => true,

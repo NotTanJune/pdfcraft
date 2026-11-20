@@ -1961,7 +1961,19 @@ fn copy_restricted_documents_refuse_extraction_unless_opened_by_the_owner() {
     assert!(d.allows_printing() && d.allows_modification() && d.allows_assembly(), "only copying is withheld");
     assert_eq!(d.check_copying(), Err(EditError::NotPermitted("copying text and images")));
     assert!(d.page_image_file(0, 0).unwrap_err().contains("don't allow copying"));
-    let extracting = ["edit.snapshot", "export.image", "export.text", "export.docx", "export.pptx", "export.html", "export.rtf", "export.all_images"];
+    let extracting = [
+        "edit.snapshot",
+        "export.image",
+        "export.text",
+        "export.docx",
+        "export.pptx",
+        "export.html",
+        "export.rtf",
+        "export.xlsx",
+        "export.csv",
+        "export.tex",
+        "export.all_images",
+    ];
     let enabled = |s: &Session, id, c| commands::is_enabled(commands::command(c).unwrap(), s, Some(id));
     for c in extracting {
         assert!(!enabled(&s, id, c), "{c} is disabled");
@@ -2308,6 +2320,23 @@ fn autosave_snapshots_only_changed_documents() {
     let saved = s.save_bytes(id).unwrap();
     s.mark_saved(id, saved, None).unwrap();
     assert!(s.autosave_snapshots().is_empty(), "saved documents need no recovery");
+}
+
+#[test]
+fn a_document_kept_off_disk_is_never_snapshotted_for_recovery() {
+    let (mut s, id) = session_with(2);
+    s.set_keep_off_disk(id, true);
+    s.apply(id, Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
+    assert!(s.get(id).unwrap().dirty);
+    assert!(!s.has_pending_autosave(), "nothing is due: its content must not reach the recovery folder");
+    assert!(s.autosave_snapshots().is_empty());
+    // The flag survives the file being read again, and can be lifted.
+    let bytes = s.get(id).unwrap().bytes.clone();
+    s.reload(id, bytes).unwrap();
+    assert!(s.get(id).unwrap().keep_off_disk);
+    s.set_keep_off_disk(id, false);
+    s.apply(id, Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
+    assert_eq!(s.autosave_snapshots().len(), 1);
 }
 
 #[test]
@@ -15721,44 +15750,77 @@ fn calculate_now_simple_calculation_reads_formatted_values_and_groups_as_the_nat
     assert_eq!(total(&s), ["3244.75"]);
 }
 
-/// A Word document converts through LibreOffice when it is installed; without it, the error
-/// says what is missing rather than calling the file a broken PDF.
+/// A Word document is typeset in process, whether or not LibreOffice is installed. A format only
+/// LibreOffice reads converts through it when it is installed; without it, the error says what is
+/// missing rather than calling the file a broken PDF.
 #[test]
-fn office_documents_convert_through_libreoffice_or_explain_why_not() {
+fn office_documents_convert_in_process_or_through_libreoffice_or_explain_why_not() {
     let mut s = Session::new();
     let text = s.create_from_text("t", "Quarterly report").unwrap();
     let id = s.open("t.pdf", None, text, None).unwrap();
     let docx = Arc::new(s.get(id).unwrap().export_office(compare::OfficeFormat::Docx));
     assert_eq!(source_kind("Report.docx", &docx), Some(SourceKind::Office));
-    match s.convert_to_pdf("Report.docx", &docx) {
+    let (kind, pdf) = s.convert_to_pdf("Report.docx", &docx).unwrap();
+    assert_eq!(kind, SourceKind::Office);
+    let converted = s.open_new("Report.pdf", pdf).unwrap();
+    assert!(page_texts(&s, converted).concat().contains("Quarterly report"));
+    // Combine treats it as a file to convert, not as a PDF to pass through.
+    assert!(s.as_pdf("Report.docx", &docx).unwrap().starts_with(b"%PDF-"));
+    // PowerPoint is LibreOffice's.
+    let pptx = Arc::new(s.get(id).unwrap().export_office(compare::OfficeFormat::Pptx));
+    match s.convert_to_pdf("Deck.pptx", &pptx) {
         Ok((kind, pdf)) => {
             assert_eq!(kind, SourceKind::Office);
-            let converted = s.open_new("Report.pdf", pdf).unwrap();
+            let converted = s.open_new("Deck.pdf", pdf).unwrap();
             assert!(page_texts(&s, converted).concat().contains("Quarterly report"));
         }
         // Only "not installed" is an acceptable failure: a conversion that fails, times out or
         // makes no PDF must fail this test.
         Err(e) => assert!(e.to_string().contains("LibreOffice, which isn't installed"), "{e}"),
     }
-    // Combine treats it as a file to convert, not as a PDF to pass through.
-    assert!(
-        s.as_pdf("Report.docx", &docx).map_or_else(|e| e.to_string().contains("LibreOffice, which isn't installed"), |pdf| pdf.starts_with(b"%PDF-"))
-    );
+}
+
+/// Word, Excel, Markdown, LaTeX and CSV files are typeset in process: the frame thread may do it
+/// (Insert, Combine, Create Multiple, File ▸ Open), and when the reader cannot read a Word file the
+/// error says so instead of handing it to LibreOffice on the frame thread.
+#[test]
+fn word_markdown_and_csv_files_convert_in_process_even_on_the_frame_thread() {
+    let s = Session::new();
+    for (name, bytes, needle) in [
+        ("notes.md", &b"# Notes\n\nHello **world**\n"[..], "Hello world"),
+        ("data.csv", &b"a,b\n1,2\n"[..], "a"),
+        ("paper.tex", &b"\\section{Intro} Body text"[..], "Body text"),
+    ] {
+        let bytes = Arc::new(bytes.to_vec());
+        assert_eq!(source_kind(name, &bytes), Some(SourceKind::Office), "{name}");
+        let (kind, pdf) = s.convert_to_pdf_inline(name, &bytes).unwrap();
+        assert_eq!(kind, SourceKind::Office);
+        let mut s2 = Session::new();
+        let id = s2.open_new(name.replace('.', "_"), pdf).unwrap();
+        assert!(page_texts(&s2, id).concat().contains(needle), "{name}");
+        assert!(s.as_pdf_inline(name, &bytes).unwrap().starts_with(b"%PDF-"), "{name}");
+    }
+    let broken = Arc::new(b"PK\x03\x04\x14\x00".to_vec());
+    let e = s.convert_to_pdf_inline("Report.docx", &broken).map(|_| ()).unwrap_err();
+    assert!(e.to_string().contains("Word document could not be read"), "{e}");
+    // The office path tries LibreOffice only for a Word or Excel file the reader could not read,
+    // and only when it is installed; either way the error names the file.
+    let e = office_to_pdf("Report.docx", &broken).map(|_| ()).unwrap_err();
+    assert!(e.to_string().contains("Report.docx") || e.to_string().contains("LibreOffice"), "{e}");
 }
 
 /// The frame thread never waits for LibreOffice: Insert, Combine and Create Multiple refuse an
-/// Office document and point to File ▸ Open, while images and text still convert there.
+/// Office document LibreOffice would convert (PowerPoint, .doc, OpenDocument) and point to File ▸ Open,
+/// while images, text and the in-process formats still convert there.
 #[test]
 fn inline_conversions_refuse_office_documents_without_running_libreoffice() {
     let s = Session::new();
-    let docx = Arc::new(b"PK\x03\x04\x14\x00".to_vec());
-    for err in
-        [s.convert_to_pdf_inline("Report.docx", &docx).map(|_| ()).unwrap_err(), s.as_pdf_inline("Report.docx", &docx).map(|_| ()).unwrap_err()]
-    {
+    let deck = Arc::new(b"PK\x03\x04\x14\x00".to_vec());
+    for err in [s.convert_to_pdf_inline("Deck.pptx", &deck).map(|_| ()).unwrap_err(), s.as_pdf_inline("Deck.pptx", &deck).map(|_| ()).unwrap_err()] {
         assert_eq!(
             err,
             EditError::Source(
-                "Report.docx: Word, Excel and PowerPoint files can't be added here yet; open it with File ▸ Open, which converts it to a PDF".into()
+                "Deck.pptx: Word, Excel and PowerPoint files can't be added here yet; open it with File ▸ Open, which converts it to a PDF".into()
             )
         );
     }

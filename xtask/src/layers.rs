@@ -62,6 +62,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("sign", Class::Layer(4)),
     ("ocr", Class::Layer(4)),
     ("create", Class::Layer(4)),
+    ("convert", Class::Layer(4)),
     ("export", Class::Layer(4)),
     ("optimize", Class::Layer(4)),
     ("preflight", Class::Layer(4)),
@@ -73,6 +74,12 @@ pub const TABLE: &[(&str, Class)] = &[
     ("print", Class::Layer(4)),
     ("media", Class::Layer(4)),
     ("ai", Class::Layer(4)),
+    // Opt-in network helpers: Ask AI (an OpenAI-compatible client, the API key) and web link previews.
+    ("assist", Class::Layer(4)),
+    // The document library (an index in a synced folder, full-text search) and the encrypted vault.
+    ("library", Class::Layer(4)),
+    // Google Drive and OneDrive (OAuth, files API); opt-in, off until an account is connected.
+    ("clouddrive", Class::Layer(4)),
     // L5 interaction
     ("viewport", Class::Layer(5)),
     ("tools", Class::Layer(5)),
@@ -104,6 +111,10 @@ pub const SIDEWAYS: &[(&str, &str)] = &[
     ("a11y", "preflight"),
     ("prepress", "preflight"),
     ("export", "ocr"),
+    // Typesets documents into PDF pages; embeds pictures through `create`.
+    ("convert", "create"),
+    // Keeps the refresh token in the same keychain wrapper as the Ask AI key.
+    ("clouddrive", "assist"),
     ("sign", "security"),
     ("ui-egui", "ui-common"),
     ("ui-egui", "platform"),

@@ -16,7 +16,7 @@ pub use upright_image::jpeg_exif_orientation;
 mod office;
 #[cfg(not(target_arch = "wasm32"))]
 pub use office::libreoffice;
-pub use office::{OFFICE_EXTENSIONS, is_office, office_to_pdf};
+pub use office::{DOCUMENT_EXTENSIONS, OFFICE_EXTENSIONS, is_office, office_to_pdf};
 use pdfcraft_fonts::wrap_with;
 use text_font::TextFont;
 

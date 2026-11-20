@@ -184,6 +184,17 @@ impl PdfCraftApp {
         }
     }
 
+    /// A click that held ⌘ (Ctrl) on a document's web address: opens it in the browser at once,
+    /// with no question, once it has passed the check every address from a document passes. An
+    /// email address, or one the check refuses, is dealt with as for a plain click
+    /// ([`Self::request_document_url`]).
+    pub fn open_document_url_now(&mut self, url: &str, origin: LinkOrigin) {
+        match pdfcraft_engine::links::document_url(url) {
+            Ok(checked) if is_web_address(&checked) => self.open_url(&checked),
+            _ => self.request_document_url(url, origin),
+        }
+    }
+
     /// The user's answer to [`Self::pending_link`]: open it, or drop it.
     pub fn resolve_pending_link(&mut self, open: bool) {
         if let Some(p) = self.pending_link.take()
@@ -192,6 +203,12 @@ impl PdfCraftApp {
             self.open_url(&p.url);
         }
     }
+}
+
+/// Whether `url` (already checked) is an `http` or `https` address.
+fn is_web_address(url: &str) -> bool {
+    let scheme = |s: &str| url.get(..s.len()).is_some_and(|head| head.eq_ignore_ascii_case(s));
+    scheme("http://") || scheme("https://")
 }
 
 /// A named destination's lookup result as a destination to show: its page, or the name again when

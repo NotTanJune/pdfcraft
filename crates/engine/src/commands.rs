@@ -180,6 +180,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     // Shown at the foot of File ▸ Open Recent and on Home, not as its own File menu item.
     c("file.clear_recent", "Clear Recent Files", None, None, Nothing, "trash-2"),
     c("file.pin_folder", "Pin folder to Home…", FILE, None, Nothing, "folder-plus"),
+    c("cloud.drives", "Cloud drives…", FILE, None, Nothing, "cloud"),
     c("create.blank", "New blank PDF", FILE, None, Nothing, "file-plus-2"),
     c("measure.distance", "Measure distance", None, None, Annotate, "ruler"),
     c("measure.perimeter", "Measure perimeter", None, None, Annotate, "ruler"),
@@ -199,6 +200,9 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.combine", "Combine files…", FILE, None, Nothing, "files"),
     c("file.save", "Save", FILE, Some(Shortcut::cmd("S")), Document, "save"),
     c("file.save_as", "Save as…", FILE, Some(Shortcut::cmd_shift("S")), Document, "save"),
+    // Google Drive and OneDrive (frontend commands; the headless counterparts are the `cloud_*` tools).
+    c("cloud.save", "Save to drive", FILE, None, Document, "cloud-upload"),
+    c("cloud.save_copy", "Save a copy to drive…", FILE, None, Document, "cloud-upload"),
     c("file.close", "Close file", FILE, Some(Shortcut::cmd("W")), Document, "x"),
     c("file.close_all", "Close all", FILE, Some(Shortcut::cmd_shift("W")), Document, "x"),
     c("file.revert", "Revert", FILE, None, Undo, "rotate-ccw"),
@@ -213,6 +217,12 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("edit.replace", "Replace…", EDIT, Some(Shortcut::cmd_shift("H")), Modification, "replace"),
     c("edit.advanced_search", "Advanced search…", EDIT, Some(Shortcut::cmd_shift("F")), Document, "search"),
     c("view.palette", "Find tools and commands…", VIEW, Some(Shortcut::cmd("K")), Nothing, "search"),
+    // The document library and the encrypted vault (frontend commands; the headless counterparts
+    // are the `library_*` and `vault_*` tools).
+    c("library.open", "Library…", VIEW, None, Nothing, "book-open"),
+    c("library.add", "Add to library", FILE, None, Document, "folder-plus"),
+    c("vault.add", "Add to vault", None, None, Document, "lock"),
+    c("vault.lock", "Lock vault", None, None, Nothing, "lock"),
     // Page display: View ▸ Page display and the rail's button list the base layouts as radios and
     // continuous scrolling as a checkbox, so `menu = None` keeps them out of the generated menus.
     // The palette still runs them.
@@ -233,6 +243,9 @@ pub const COMMANDS: &[CommandSpec] = &[
     // Alt-drag for moving windows (several Linux window managers).
     // Copy events stay with the frontend so focused text inputs and page clipboard routing keep ownership.
     c("edit.copy", "Copy", EDIT, None, Copying, "copy"),
+    // Opens the Ask AI panel with the text selected on the pages; the question is sent only when
+    // asked (a frontend command: the headless counterpart is the `ai_ask` tool).
+    c("ai.ask", "Ask AI about the selected text", None, None, Copying, "sparkles"),
     // Comments travel between documents as XFDF (M14): ⌘C with comments selected copies them,
     // ⌘V pastes the copies onto the current page; the strip's Copy/Paste in the menus too.
     c("comment.copy", "Copy comments", EDIT, None, Document, "copy"),
@@ -381,6 +394,9 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("export.pptx", "Export to PowerPoint…", FILE, None, Copying, "presentation"),
     c("export.html", "Export to HTML…", FILE, None, Copying, "file-symlink"),
     c("export.rtf", "Export to RTF…", FILE, None, Copying, "file-text"),
+    c("export.xlsx", "Export to Excel…", FILE, None, Copying, "grid-3x3"),
+    c("export.csv", "Export to CSV…", FILE, None, Copying, "grid-3x3"),
+    c("export.tex", "Export to LaTeX…", FILE, None, Copying, "file-code"),
     c("app.preferences", "Preferences…", EDIT, Some(Shortcut::cmd(",")), Nothing, "settings"),
     c("tools.js_console", "JavaScript console…", None, Some(Shortcut::cmd("J")), Document, "square-terminal"),
     c("tools.document_js", "Document JavaScripts…", None, None, Modification, "file-code"),

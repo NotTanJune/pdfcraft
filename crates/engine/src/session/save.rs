@@ -186,6 +186,7 @@ impl Session {
         let at = self.docs.iter().position(|d| d.id == new_id).ok_or_else(|| OpenError::Invalid("the new version was not kept".into()))?;
         let mut doc = self.docs.remove(at);
         doc.id = id;
+        doc.keep_off_disk = self.docs.get(old).is_some_and(|d| d.keep_off_disk);
         // How the document is shown is the reader's, not the file's: reading colours and hidden
         // comments stay as they were (#3443). `open` built the renderer with the defaults.
         if let Some(old) = self.docs.get(old)
@@ -206,7 +207,7 @@ impl Session {
 
     /// Whether a changed document still needs a recovery snapshot. This does not consume it.
     pub fn has_pending_autosave(&self) -> bool {
-        self.docs.iter().any(|d| d.dirty && d.generation != d.snapshot_generation)
+        self.docs.iter().any(|d| d.dirty && !d.keep_off_disk && d.generation != d.snapshot_generation)
     }
 
     /// Documents with unsaved changes made since the last call: their current working file,
@@ -214,7 +215,7 @@ impl Session {
     pub fn autosave_snapshots(&mut self) -> Vec<RecoverySnapshot> {
         let mut out = Vec::new();
         for d in &mut self.docs {
-            if d.dirty && d.generation != d.snapshot_generation {
+            if d.dirty && !d.keep_off_disk && d.generation != d.snapshot_generation {
                 // The working bytes hold typed Password-field values (#3926, #3944): a recovery file
                 // is written from a copy without them, and none is written if that copy fails.
                 let bytes =
@@ -238,6 +239,14 @@ impl Session {
             }
         }
         out
+    }
+
+    /// Keeps (or stops keeping) the document's content off the disk: no crash-recovery snapshot is
+    /// taken of it. For documents opened from the vault.
+    pub fn set_keep_off_disk(&mut self, id: DocId, on: bool) {
+        if let Some(d) = self.docs.iter_mut().find(|d| d.id == id) {
+            d.keep_off_disk = on;
+        }
     }
 
     /// The snapshot [`Self::autosave_snapshots`] handed out for `id` could not be stored: the

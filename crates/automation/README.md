@@ -152,6 +152,48 @@ claude mcp add pdfcraft -- pdfcraft-cli mcp --root <dir>
 4. Add an end-to-end test in `tests/it/automation.rs`. `tool_table_is_well_formed` checks names, schemas and command links.
 
 
+## Network tools (opt-in per call)
+
+Two tools reach the network, only when called, and the rest of the table never does.
+`ai_ask {doc, page, text, question?, context?, dry_run?, base_url?, model?, api_key?}` asks the
+person's own OpenAI-compatible endpoint about selected text and returns the `answer`, the pages it
+cites (`citations`) and the model. `dry_run` returns the request without sending it. The key comes
+from the keychain or `PDFCRAFT_AI_API_KEY` and goes only to the configured endpoint, so a call that
+names another `base_url` must pass its own `api_key`. `link_preview {doc, page, index | url, fetch?}`
+returns the destination region of a page link as a PNG, or a web link's host, and with
+`fetch: true` its title and description (bounded GET, no cookies, never this computer or a private
+network; `Automation::with_link_fetch_policy` loosens that for tests). Tests use
+`pdfcraft_assist::mock::MockServer` on `127.0.0.1`.
+
+## Cloud drives (opt-in per call)
+
+`cloud_status`, `cloud_connect`, `cloud_disconnect`, `cloud_list`, `cloud_download` and
+`cloud_upload` reach Google Drive and OneDrive through `pdfcraft-clouddrive`, only when called and
+only for an account the owner connected: no client ID, no connection, no request. The owner's own
+OAuth client comes from the keychain (saved in the app's Cloud drives window) or from
+`PDFCRAFT_GOOGLE_CLIENT_ID`, `PDFCRAFT_GOOGLE_CLIENT_SECRET`, `PDFCRAFT_MICROSOFT_CLIENT_ID` and
+`PDFCRAFT_MICROSOFT_AUTHORITY`; tokens stay in the keychain and never appear in a result.
+`cloud_download` opens the file into the session from memory (a Word, Markdown, LaTeX, CSV or Excel
+file through the in-process conversion, a Google Docs file as its PDF export), and `path` also saves a
+copy inside the root. A downloaded PDF remembers its drive file and version, so `cloud_upload` with
+its `id` refuses to replace a file that changed since, unless `overwrite: true`. `Automation::with_cloud`
+(`CloudSetup`) replaces the keychain settings and the browser opener; tests use
+`pdfcraft_clouddrive::mock::FakeCloud`, a server on `127.0.0.1`.
+
+## Documents to and from PDF
+
+`doc_create_from_document {path, paper?, margin?, font_size?, name?}` typesets a Word (.docx),
+Markdown, LaTeX, CSV/TSV or Excel (.xlsx) file into a new, unsaved PDF in this process
+(`pdfcraft-convert`); no LibreOffice runs. It returns the document like `doc_open`, plus `format`,
+`pages` and `warnings` (what was left out: shapes, charts, headers, characters no font draws).
+`doc_create_multiple` and the app's File menu route the same formats the same way and send every
+other Office format to an installed LibreOffice.
+
+`doc_export_office` also writes Excel (`.xlsx`: a sheet per detected table, or a page's text lines
+when it has no table), CSV (`.csv`: the same rows, `table` picks one) and LaTeX (`.tex`) by the
+extension of `path`. Spreadsheet text is never written as a formula, and CSV fields that would run
+as one get a leading apostrophe.
+
 ## Moving several page objects
 
 `object_list {doc, page}` inventories recognised paragraphs, Image/Form artwork and added items
@@ -363,3 +405,19 @@ updates the same one-word-per-UTF-8-line format OCR Verify uses. Omit add/remove
 The explicit path honors `--root`, including symlink confinement; choose the appropriate
 per-language file used by the UI. Entries are case-insensitive and duplicate-free. Invalid
 or oversized inputs fail before writing (65,536 words, 4 MiB, at most 1,024 bytes per word).
+
+## Library and vault tools
+
+`library_add`, `library_list`, `library_search`, `library_remove`, `library_open` and `library_tag`
+work on the document library (`pdfcraft-library`): an index in a library folder that the owner's
+Macs share through the folder's sync. `vault_create`, `vault_unlock`, `vault_lock`, `vault_add`,
+`vault_list`, `vault_open`, `vault_save` and `vault_remove` work on the encrypted vault in that
+folder's `Vault/` subfolder. The folder is the call's `library`, else
+`Automation::with_library_dir`, else `PDFCRAFT_LIBRARY_DIR`, else iCloud Drive's `PdfCraft/` (or the
+app's data folder); with `--root` set the default is not used and `library` must be inside the root.
+The vault passphrase is `passphrase` or `PDFCRAFT_VAULT_PASSPHRASE` (the environment keeps it out of
+logs and shell history). `vault_open` opens a document from memory with no path and out of crash
+recovery; `doc_save` without a path (or `vault_save`) encrypts it again. Locking closes the vault
+documents that have no unsaved changes. Tests use `Automation::with_vault_key_cache` with a
+`pdfcraft_library::vault::MemoryCache` (no real keychain) and `with_vault_kdf` with
+`KdfParams::MIN_STRENGTH`.

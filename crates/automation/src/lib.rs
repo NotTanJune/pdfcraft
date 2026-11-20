@@ -15,8 +15,10 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod a11y;
+mod assist;
 mod batch;
 mod bates;
+mod cloud;
 mod comments;
 mod content;
 mod conventions;
@@ -24,6 +26,7 @@ pub mod file_access;
 mod forms;
 mod hairlines;
 mod layers;
+mod library;
 mod links;
 #[cfg(feature = "mcp")]
 pub mod mcp;
@@ -61,12 +64,14 @@ mod json;
 mod pages;
 mod paths;
 
+pub use cloud::{BrowserOpener, CloudSetup};
 pub use dispatch::Content;
 pub use error::ToolError;
 use error::{Result, failed};
 pub(crate) use json::destination;
 pub use json::view_rect;
 use json::{Args, info, summary};
+pub use library::{LIBRARY_ENV, PASSPHRASE_ENV};
 use pages::{DEFAULT_DPI, MAX_DPI, encode_png, rendered_content};
 #[cfg(test)]
 use pages::{FIND_FIRST_BATCH, FIND_MAX_WARNING_BYTES, FIND_MAX_WARNINGS, extract_parallel};
@@ -104,6 +109,12 @@ pub struct Automation {
     next_ocr_review: u64,
     /// What object_copy copied, for object_paste into any open document.
     objects_clipboard: Option<pdfcraft_engine::ObjectClipboard>,
+    /// What `link_preview` with `fetch` may reach. Strict unless a host or test says otherwise.
+    link_fetch: pdfcraft_assist::preview::FetchPolicy,
+    /// The library folder, the vault session and the documents opened from the vault.
+    library: library::LibraryState,
+    /// Google Drive and OneDrive: client overrides and where downloaded documents came from.
+    cloud: cloud::CloudState,
 }
 
 impl Default for Automation {
@@ -125,7 +136,18 @@ impl Automation {
             ocr_reviews: HashMap::new(),
             next_ocr_review: 0,
             objects_clipboard: None,
+            link_fetch: pdfcraft_assist::preview::FetchPolicy::default(),
+            library: library::LibraryState::default(),
+            cloud: cloud::CloudState::default(),
         }
+    }
+
+    /// Let `link_preview` with `fetch: true` reach the addresses `policy` allows. The default
+    /// refuses this computer and private networks (tests that serve a page from `127.0.0.1` allow
+    /// them).
+    pub fn with_link_fetch_policy(mut self, policy: pdfcraft_assist::preview::FetchPolicy) -> Self {
+        self.link_fetch = policy;
+        self
     }
 
     /// Confine every path the tools read or write to `root` (relative paths resolve inside it).

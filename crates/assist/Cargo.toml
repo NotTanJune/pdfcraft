@@ -1,0 +1,37 @@
+[package]
+name = "pdfcraft-assist"
+description = "Opt-in network helpers (L4): ask an OpenAI-compatible model about selected page text, and bounded web link previews"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# `mock::MockServer`, a loopback HTTP server for tests. Never enabled by a normal build.
+mock = []
+
+[dependencies]
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+# The tolerant HTML tokenizer (no tree, no CSS) reads a page's title and description only.
+craft-html = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+# Bounded http(s) URL parsing and redirect resolution; no network operations of its own.
+craft-http-url = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The HTTP client craft-update already builds (MIT OR Apache-2.0): rustls with the operating
+# system's certificate verifier; no `cookies` feature, so no cookie jar.
+ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider", "_ring", "gzip", "platform-verifier"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The login keychain holds the API key (MIT OR Apache-2.0; also used by pdfcraft-sign).
+security-framework = "3.7"
+
+[dev-dependencies]
+# Turns the `mock` feature on for this crate's own tests (tests/network.rs).
+pdfcraft-assist = { workspace = true, features = ["mock"] }

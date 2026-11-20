@@ -71,6 +71,28 @@ fn tool_card(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static c
     }
 }
 
+/// The Library card beside Open file: your documents in the synced folder and the vault.
+#[cfg(not(target_arch = "wasm32"))]
+fn library_card(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    let (rect, resp) = ui.allocate_exact_size(vec2(170.0, 104.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Library")));
+    let press = theme::Press::track(ui, &resp);
+    card_lift(ui, t, rect, press);
+    ui.painter().rect(
+        rect,
+        CornerRadius::same(10),
+        press.fill(t.pasteboard, t.hover, t.pressed),
+        Stroke::new(1.0, t.divider),
+        egui::StrokeKind::Inside,
+    );
+    let body = rect.translate(press.offset());
+    icons::paint(ui, Rect::from_center_size(body.center() - vec2(0.0, 16.0), vec2(28.0, 28.0)), "book-open", 26.0, t.icon);
+    ui.painter().text(body.center() + vec2(0.0, 22.0), Align2::CENTER_CENTER, tl!("Library"), theme::semibold(13.0), t.text);
+    if theme::hand(resp).clicked() {
+        app.open_library();
+    }
+}
+
 /// Draw the Home page with the welcome text, community card and recent documents.
 pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
@@ -92,7 +114,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
-                            widgets::artcraft_mark(ui, 28.0);
+                            widgets::app_mark(ui, 28.0);
                             ui.vertical(|ui| {
                                 ui.label(egui::RichText::new(tl!("Join the ArtCraft community")).font(theme::semibold(15.0)));
                                 ui.label(egui::RichText::new(tl!("Get help, share feedback and follow development on Discord.")).color(t.text_muted));
@@ -147,6 +169,8 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         if theme::hand(resp).clicked() {
                             app.open_dialog();
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        library_card(app, ui, &t);
                     });
                 });
 

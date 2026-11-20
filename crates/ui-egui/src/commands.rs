@@ -482,6 +482,28 @@ impl PdfCraftApp {
                 }
             }
             "comment.list" => self.choose_right_panel(Some(RightPanel::Comments)),
+            // Google Drive and OneDrive. The headless counterparts are the `cloud_*` tools.
+            "cloud.drives" => self.open_cloud_drives(),
+            "cloud.save" => self.cloud_save_active(),
+            "cloud.save_copy" => self.cloud_save_copy_active(),
+            // The Library window (desktop only: the web build has no folder to sync).
+            #[cfg(not(target_arch = "wasm32"))]
+            "library.open" => self.open_library(),
+            #[cfg(not(target_arch = "wasm32"))]
+            "library.add" => self.library_add_active(),
+            #[cfg(not(target_arch = "wasm32"))]
+            "vault.add" => self.vault_add_active(),
+            #[cfg(not(target_arch = "wasm32"))]
+            "vault.lock" => {
+                self.lock_vault();
+                self.notify_tr("Vault locked");
+            }
+            // The selected text goes into the Ask AI panel; nothing is sent until Ask.
+            "ai.ask" => {
+                if let Some(i) = active {
+                    self.ask_ai_about_selection(i);
+                }
+            }
             tool if crate::comments::CommentTool::from_command(tool).is_some() => {
                 let Some(tool) = crate::comments::CommentTool::from_command(tool) else { return Some(false) };
                 self.comment_prefs.group_tool[tool.group()] = tool;
@@ -631,6 +653,9 @@ impl PdfCraftApp {
             "export.pptx" => self.export_office_dialog(pdfcraft_engine::compare::OfficeFormat::Pptx),
             "export.html" => self.export_office_dialog(pdfcraft_engine::compare::OfficeFormat::Html),
             "export.rtf" => self.export_office_dialog(pdfcraft_engine::compare::OfficeFormat::Rtf),
+            "export.xlsx" => self.export_office_dialog(pdfcraft_engine::compare::OfficeFormat::Xlsx),
+            "export.csv" => self.export_office_dialog(pdfcraft_engine::compare::OfficeFormat::Csv),
+            "export.tex" => self.export_office_dialog(pdfcraft_engine::compare::OfficeFormat::Latex),
             "ocr.enhance_camera" => {
                 // The corners start on the document's edges when they can be found, else
                 // inset on the current page (camera_ui::page_input).

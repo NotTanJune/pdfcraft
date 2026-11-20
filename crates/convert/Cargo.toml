@@ -1,0 +1,30 @@
+[package]
+name = "pdfcraft-convert"
+description = "Typeset Word, Markdown, LaTeX, CSV and Excel documents into PDF pages in process"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+pdfcraft-cos = { workspace = true }
+pdfcraft-fonts = { workspace = true }
+# Picture embedding (`image_xobject`) and plain-text decoding.
+pdfcraft-create = { workspace = true }
+# One craft-libs revision for the crates that exchange types: see the root Cargo.toml.
+craft-wordmodel = { workspace = true }
+craft-flow = { workspace = true }
+craft-docx = { workspace = true }
+craft-markdown = { workspace = true }
+craft-latex = { workspace = true }
+craft-xlsx = { workspace = true }
+craft-sheet = { workspace = true }
+craft-csv = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+craft-xlsx = { workspace = true, features = ["test-support"] }
+pdfcraft-render = { workspace = true }

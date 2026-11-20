@@ -114,13 +114,13 @@ fn docx(text: &str) -> Vec<u8> {
     ])
 }
 
-/// An Excel workbook whose one sheet holds `text` in A1 and a formula, `=6*7`, in A2.
+/// An Excel workbook whose one sheet holds `text` in A1 and a formula, `=6*7` with its saved result 42, in A2.
 fn xlsx(text: &str) -> Vec<u8> {
     let workbook = format!(
         r#"{XML}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="{DOC_RELS}"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>"#
     );
     let sheet = format!(
-        r#"{XML}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>{text}</t></is></c></row><row r="2"><c r="A2"><f>6*7</f></c></row></sheetData></worksheet>"#
+        r#"{XML}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>{text}</t></is></c></row><row r="2"><c r="A2"><f>6*7</f><v>42</v></c></row></sheetData></worksheet>"#
     );
     zip(&[
         (

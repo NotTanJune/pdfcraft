@@ -28,8 +28,12 @@ Layer L4. Create a PDF (Acrobat's Create a PDF tool), execution plan M10.2:
 
 Every function returns a `pdfcraft_cos::Document`; the caller writes it.
 
-Office documents (`office.rs`) are the exception: PdfCraft doesn't read Word, Excel, PowerPoint,
-OpenDocument or RTF itself. `is_office(name, bytes)` recognises them (an `OFFICE_EXTENSIONS`
+Office documents (`office.rs`) are the exception. `pdfcraft-convert` typesets Word (.docx), Markdown,
+LaTeX, CSV and Excel (.xlsx) files in process, and the engine tries it first (those names, and
+Markdown, LaTeX and CSV whatever their bytes, are in `OFFICE_EXTENSIONS`; `DOCUMENT_EXTENSIONS`
+are the text ones). This crate reads nothing of Word, Excel, PowerPoint, OpenDocument or RTF itself:
+the rest (.doc, .pptx, .odt, .ods, .rtf, ...) is converted by LibreOffice, and so is a Word or Excel
+file the in-process reader could not read. `is_office(name, bytes)` recognises them (an `OFFICE_EXTENSIONS`
 name and an OLE, ZIP or RTF signature; `source_kind` reports `SourceKind::Office`), and
 `office_to_pdf(name, bytes)` returns PDF bytes made by an installed LibreOffice, run headless as
 a separate process: a private temporary folder (owner-only on Unix; the document is always

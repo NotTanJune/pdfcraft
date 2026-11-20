@@ -322,6 +322,15 @@ impl DocView {
         Some(parts.join("\n")).filter(|x| !x.is_empty())
     }
 
+    /// The words selected, for Ask AI: the page they start on (0-based), the text, and that page's
+    /// whole text for the person who asks to send it too. `None` while the selection's pages are
+    /// still being read, and when nothing is selected.
+    pub(crate) fn selection_for_ai(&self) -> Option<(usize, String, Option<String>)> {
+        let text = self.selected_text()?;
+        let page = if self.all_text { self.current } else { *self.selection?.pages().start() };
+        Some((page, text, self.texts.get(&page).map(|t| t.plain_text())))
+    }
+
     /// The selection's page, its text layer and the selected glyphs in copy order, for Copy with
     /// formatting. `None` after Select All of the document, for a column selection or a table's
     /// rows, which copy plain text (rows and tab-separated cells are not paragraphs), and for a
@@ -405,10 +414,12 @@ enum SelectionAction {
     Markup(comments::CommentTool),
     Replace,
     Copy,
+    /// Ask AI about the words (the app opens the Ask AI panel with them).
+    AskAi,
 }
 
 /// The selection bar's width before it has been laid out once (English labels).
-const SELECTION_BAR_GUESS: f32 = 520.0;
+const SELECTION_BAR_GUESS: f32 = 590.0;
 
 /// Edits that each add a page's part of something marked on a text selection, as one undo step:
 /// the edit itself for one page, a batch named like it for several. For edits whose label has no
@@ -494,6 +505,9 @@ pub(super) fn selection_actions(
                 if ui.add_enabled(can_copy, egui::Button::new(tl!("Copy"))).clicked() {
                     chosen = Some(SelectionAction::Copy);
                 }
+                if ui.add_enabled(can_copy, egui::Button::new(tl!("Ask AI"))).clicked() {
+                    chosen = Some(SelectionAction::AskAi);
+                }
             });
         });
     });
@@ -502,6 +516,12 @@ pub(super) fn selection_actions(
         // Copying closes the bar but keeps the words selected, for ⌘C or a second action.
         view.actions_dismissed = Some(selection);
         return true;
+    }
+    if let SelectionAction::AskAi = action {
+        // The bar closes and the words stay selected; the app opens the panel with them.
+        view.actions_dismissed = Some(selection);
+        view.ask_ai = true;
+        return false;
     }
     let marks = view.selection_quads(info);
     if marks.is_empty() {
@@ -537,8 +557,8 @@ pub(super) fn selection_actions(
             });
             view.pending_edit = view.selection_marks_edit(edits.collect(), selection.head_page());
         }
-        // Copy is dispatched through the app after the view borrow ends.
-        SelectionAction::Copy => {}
+        // Copy and Ask AI are dispatched through the app after the view borrow ends.
+        SelectionAction::Copy | SelectionAction::AskAi => {}
     }
     false
 }

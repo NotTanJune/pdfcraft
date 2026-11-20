@@ -65,6 +65,9 @@ const PICKERS: &[&str] = &[
     "export.pptx",
     "export.html",
     "export.rtf",
+    "export.xlsx",
+    "export.csv",
+    "export.tex",
     "measure.export",
 ];
 

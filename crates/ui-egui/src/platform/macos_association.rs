@@ -7,7 +7,12 @@ use std::{io, path::Path};
 
 const OPEN_WITH: &str = "com.apple.LaunchServices.OpenWith";
 const QUARANTINE: &str = "com.apple.quarantine";
-const BUNDLE_ID: &str = "ai.storyteller.pdfcraft";
+/// The running bundle's identifier. A build signed under its own App ID (a provisioning profile
+/// given to packaging/macos/package.sh) sets `PDFCRAFT_MACOS_BUNDLE_ID` at compile time.
+const BUNDLE_ID: &str = match option_env!("PDFCRAFT_MACOS_BUNDLE_ID") {
+    Some(id) => id,
+    None => "ai.storyteller.pdfcraft",
+};
 const MAX_ATTRIBUTE: usize = 64 * 1024;
 
 /// A bounded snapshot used only to decide whether native association recovery is eligible.

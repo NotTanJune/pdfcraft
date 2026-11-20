@@ -309,7 +309,7 @@ fn claim_under(hits: &PageHits<'_>, view: &mut DocView, p: Pos2, claim: bool) ->
     let under = hits.at(view, p, None);
     if claim {
         for h in &under {
-            view.cursor.claim_with_tip(h.layer, h.icon, h.tip.clone());
+            view.cursor.claim_with_preview(h.layer, h.icon, h.tip.clone(), h.preview.clone());
         }
     }
     top(under, hits.tool)
@@ -664,6 +664,7 @@ fn text_link_hit(view: &DocView, info: &DocInfo, xf: &PageXform, page: usize, p:
     // A drag from the address selects its text, as from any other text: only a click opens it.
     Some(crate::page_router::Hit {
         tip: Some(link.uri.clone()),
+        preview: crate::link_preview::Target::of_uri(&link.uri),
         declines_drag: true,
         ..crate::page_router::Hit::new(owner, Layer::Link, egui::CursorIcon::PointingHand)
     })
@@ -1053,6 +1054,7 @@ pub(super) fn page_overlays(ui: &mut egui::Ui, view: &mut DocView, frame: &mut P
         && let Some(l) = info.links.iter().find(|l| l.page == i && l.index == index)
     {
         frame.out.clicked_link = Some(l.target.clone());
+        frame.out.open_link_now = ptr.modifiers.command;
         frame.out.javascript_link = javascript_link(l);
     }
     // A web or email address written as plain text (#4207): the same click as a link annotation,
@@ -1067,6 +1069,7 @@ pub(super) fn page_overlays(ui: &mut egui::Ui, view: &mut DocView, frame: &mut P
         && let Some(uri) = view.text_link_uri(i, index)
     {
         frame.out.clicked_link = Some(LinkTarget::Uri(uri));
+        frame.out.open_link_now = ptr.modifiers.command;
     }
     // Comments say what they are with any tool, beside its cursor, as Acrobat's do.
     comments::describe(&pcx, view);

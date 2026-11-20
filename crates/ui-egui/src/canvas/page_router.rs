@@ -124,6 +124,9 @@ pub(crate) struct Hit {
     pub icon: CursorIcon,
     /// Beside the pointer where this hit wins (a link's target).
     pub tip: Option<String>,
+    /// What the tip's card shows once the pointer rests: where a link goes (a page of this
+    /// document, or a web address).
+    pub preview: Option<crate::link_preview::Target>,
     /// A drag from here is not this owner's: a click on a highlight selects it, a drag across it
     /// selects the text underneath; with the Link tool, a drag from a link draws a new one.
     pub declines_drag: bool,
@@ -131,7 +134,7 @@ pub(crate) struct Hit {
 
 impl Hit {
     pub(crate) fn new(owner: Owner, layer: Layer, icon: CursorIcon) -> Self {
-        Hit { owner, layer, icon, tip: None, declines_drag: false }
+        Hit { owner, layer, icon, tip: None, preview: None, declines_drag: false }
     }
 }
 

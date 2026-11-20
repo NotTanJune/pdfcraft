@@ -195,6 +195,10 @@ use widgets::icon_data;
 pub use widgets::icons;
 use workflows::a11y_ui;
 use workflows::actions_ui;
+use workflows::ai_ui;
+pub use workflows::ai_ui::{AiSelection, AiState, ChatTurn, KeySource, Outcome as AiOutcome};
+use workflows::cloud_ui;
+pub use workflows::cloud_ui::{CloudState, RemoteLink};
 use workflows::combine_grid;
 use workflows::combine_ui;
 use workflows::compare_ui;
@@ -202,6 +206,12 @@ use workflows::create_ui;
 use workflows::export_ui;
 use workflows::files;
 use workflows::js_ui;
+#[cfg(not(target_arch = "wasm32"))]
+use workflows::library_ui;
+#[cfg(not(target_arch = "wasm32"))]
+pub use workflows::library_ui::{LibraryUi, PendingDelete, Row as LibraryRow};
+use workflows::link_preview;
+pub use workflows::link_preview::PreviewReport;
 #[cfg(target_arch = "wasm32")]
 use workflows::ocr_route;
 use workflows::ocr_ui;
@@ -491,6 +501,18 @@ pub struct PdfCraftApp {
     /// Preferences: open every document at Default zoom and Default page display, whatever
     /// layout or zoom it asks for (#1618).
     pub always_default_view: bool,
+    /// Preferences: a web link's hover card also shows the page's title and description, fetched
+    /// over the network. Off by default; nothing is fetched while it is off.
+    pub fetch_link_previews: bool,
+    /// The cards link hovering shows, and what they fetched this session.
+    pub(crate) link_previews: link_preview::Previews,
+    /// Ask AI: the connection settings, the conversation and the request in flight.
+    pub ai: ai_ui::AiState,
+    /// The Library window: the document library and the encrypted vault (desktop only).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub library_ui: library_ui::LibraryUi,
+    /// Cloud drives: the window, the accounts, the transfer in flight and where open documents came from.
+    pub cloud: cloud_ui::CloudState,
     /// Open documents' files, watched for changes on disk.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) watch: file_watch::FileWatch,

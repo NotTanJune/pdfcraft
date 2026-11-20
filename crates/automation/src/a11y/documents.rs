@@ -5,7 +5,7 @@ impl Automation {
         let path = self.resolve(a.str("path")?, true)?;
         let ext = path.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
         let format = pdfcraft_engine::compare::OfficeFormat::from_extension(&ext)
-            .ok_or_else(|| ToolError::InvalidArgs(format!("unsupported extension {ext:?} (docx, pptx, html, rtf or md)")))?;
+            .ok_or_else(|| ToolError::InvalidArgs(format!("unsupported extension {ext:?} (docx, pptx, html, rtf, md, tex, xlsx or csv)")))?;
         let html_mode = a.opt_str("html_mode")?.unwrap_or("rich");
         let format = match (format, html_mode) {
             (pdfcraft_engine::compare::OfficeFormat::Html, "rich") => pdfcraft_engine::compare::OfficeFormat::Html,
@@ -13,7 +13,15 @@ impl Automation {
             (_, "rich") => format,
             (_, _) => return Err(ToolError::InvalidArgs("html_mode is only available for HTML exports (rich or simple)".into())),
         };
-        let export = self.doc_to_copy(a)?.export_office_checked(format);
+        let table = a.opt_int("table")?;
+        if table.is_some() && format != pdfcraft_engine::compare::OfficeFormat::Csv {
+            return Err(ToolError::InvalidArgs("table is only available for CSV exports".into()));
+        }
+        let table = match table {
+            Some(n) => Some(usize::try_from(n).ok().filter(|n| *n >= 1).ok_or_else(|| ToolError::InvalidArgs("table is numbered from 1".into()))?),
+            None => None,
+        };
+        let export = self.doc_to_copy(a)?.export_office_table(format, table);
         write_atomic(&path, &export.bytes)?;
         // Text left out to keep a hostile page bounded is said, not silent (#3120).
         let truncated: Vec<usize> = export.truncated_pages.iter().map(|p| p.saturating_add(1)).collect();
